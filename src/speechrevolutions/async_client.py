@@ -23,7 +23,7 @@ from speechrevolutions._config import (
     resolve_api_key,
 )
 from speechrevolutions._progress import resolve_progress as _resolve_progress
-from speechrevolutions._upload import ProgressReader, aiter_with_progress
+from speechrevolutions._upload import aiter_with_progress
 from speechrevolutions._upload import byte_progress_adapter as _byte_progress_adapter
 from speechrevolutions.exceptions import (
     APIError,
@@ -227,11 +227,10 @@ class AsyncSTTClient:
 
     async def upload_audio(
         self,
-        upload_url: str | dict[str, Any],
+        upload_url: str,
         data: bytes,
         *,
         job_id: str | None = None,
-        filename: str | None = None,
         content_type: str = "application/octet-stream",
         on_progress: ProgressCallback | None = None,
     ) -> None:
@@ -244,9 +243,7 @@ class AsyncSTTClient:
         try:
             for attempt in range(1, UPLOAD_MAX_ATTEMPTS + 1):
                 try:
-                    await self._put_or_post_upload(
-                        upload_url, data, filename, content_type, on_progress
-                    )
+                    await self._put_upload(upload_url, data, content_type, on_progress)
                     return
                 except Exception as exc:
                     last_exc = exc
@@ -414,26 +411,15 @@ class AsyncSTTClient:
                 except Exception:
                     pass
 
-    async def _put_or_post_upload(
+    async def _put_upload(
         self,
-        upload_url: str | dict[str, Any],
+        upload_url: str,
         data: bytes,
-        filename: str | None,
         content_type: str,
         on_progress: ProgressCallback | None = None,
     ) -> None:
         byte_cb = _byte_progress_adapter(on_progress)
-        if isinstance(upload_url, dict):
-            # A fresh reader per call so retries restart progress from 0.
-            body: Any = ProgressReader(data, byte_cb) if byte_cb else data
-            files = {"file": (filename or "audio", body, content_type)}
-            resp = await self._client.post(
-                upload_url["url"],
-                data=upload_url.get("fields", {}),
-                files=files,
-                timeout=300.0,
-            )
-        elif byte_cb:
+        if byte_cb:
             # Stream in chunks for progress; explicit Content-Length keeps
             # httpx from switching to Transfer-Encoding: chunked (S3 rejects it).
             resp = await self._client.put(

@@ -138,7 +138,7 @@ class UploadJob:
     """Result of POST /api/v1/upload."""
 
     job_id: str
-    upload_url: str | dict[str, Any]
+    upload_url: str
     download_url: str
     content_type: str = "application/octet-stream"
     expires_in: int = 0

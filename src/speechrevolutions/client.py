@@ -359,11 +359,10 @@ class STTClient:
 
     def upload_audio(
         self,
-        upload_url: str | dict[str, Any],
+        upload_url: str,
         data: bytes,
         *,
         job_id: str | None = None,
-        filename: str | None = None,
         content_type: str = "application/octet-stream",
         on_progress: ProgressCallback | None = None,
     ) -> None:
@@ -381,9 +380,7 @@ class STTClient:
         try:
             for attempt in range(1, UPLOAD_MAX_ATTEMPTS + 1):
                 try:
-                    self._put_or_post_upload(
-                        upload_url, data, filename, content_type, on_progress
-                    )
+                    self._put_upload(upload_url, data, content_type, on_progress)
                     return
                 except Exception as exc:
                     last_exc = exc
@@ -576,31 +573,22 @@ class STTClient:
             except Exception:
                 pass
 
-    def _put_or_post_upload(
+    def _put_upload(
         self,
-        upload_url: str | dict[str, Any],
+        upload_url: str,
         data: bytes,
-        filename: str | None,
         content_type: str,
         on_progress: ProgressCallback | None = None,
     ) -> None:
         byte_cb = _byte_progress_adapter(on_progress)
         # A fresh reader per call so retries restart progress from 0.
         body: Any = ProgressReader(data, byte_cb) if byte_cb else data
-        if isinstance(upload_url, dict):
-            resp = self._session.post(
-                upload_url["url"],
-                data=upload_url.get("fields", {}),
-                files={"file": (filename or "audio", body, content_type)},
-                timeout=300,
-            )
-        else:
-            resp = self._session.put(
-                upload_url,
-                data=body,
-                headers={"Content-Type": content_type},
-                timeout=300,
-            )
+        resp = self._session.put(
+            upload_url,
+            data=body,
+            headers={"Content-Type": content_type},
+            timeout=300,
+        )
         if resp.status_code not in (200, 204):
             raise UploadError(f"HTTP {resp.status_code}: {resp.text[:200]}")
 

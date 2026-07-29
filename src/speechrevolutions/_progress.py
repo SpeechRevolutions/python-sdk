@@ -71,7 +71,7 @@ class ProgressPrinter:
     def _render_tqdm(self, event: ProgressEvent) -> None:
         # A single, stable bar. For transcription the step name (preprocess /
         # chunk:N / aggregation) is deliberately kept off the bar — chunks
-        # finish out of order and made the label jump around; callers who want
+        # finish out of order and make the label jump around; callers who want
         # it read event.step in their callback.
         total = event.total
         if self._bar is None:

@@ -14,10 +14,12 @@ def parse_sse_stream(lines: Iterator[str]) -> Iterator[dict[str, Any]]:
     Comment/heartbeat lines (starting with ':') are skipped.
     """
     event: dict[str, Any] = {}
+    data_lines: list[str] = []
     for raw_line in lines:
         if raw_line == "":
-            if event.get("data") is not None:
-                yield event
+            if data_lines:
+                yield {**event, "data": "\n".join(data_lines)}
+                data_lines = []
             event = {}
             continue
 
@@ -35,4 +37,7 @@ def parse_sse_stream(lines: Iterator[str]) -> Iterator[dict[str, Any]]:
         elif field == "event":
             event["event"] = value
         elif field == "data":
-            event["data"] = value
+            data_lines.append(value)
+
+    if data_lines:
+        yield {**event, "data": "\n".join(data_lines)}
