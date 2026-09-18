@@ -29,6 +29,7 @@ from speechrevolutions._config import (
     extract_request_id,
     parse_retry_after,
     resolve_api_key,
+    resolve_base_url,
 )
 from speechrevolutions._progress import resolve_progress as _resolve_progress
 from speechrevolutions._upload import ProgressReader
@@ -81,7 +82,7 @@ class STTClient:
         self,
         api_key: str | None = None,
         *,
-        base_url: str = DEFAULT_BASE_URL,
+        base_url: str | None = None,
         timeout: float = 600.0,
         session: requests.Session | None = None,
         max_retries: int = DEFAULT_MAX_RETRIES,
@@ -90,7 +91,7 @@ class STTClient:
         multipart: bool = True,
     ) -> None:
         self.api_key = resolve_api_key(api_key)
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(base_url)
         self.timeout = timeout
         self._session = session or requests.Session()
         if proxies:

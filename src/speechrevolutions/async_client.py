@@ -28,6 +28,7 @@ from speechrevolutions._config import (
     extract_request_id,
     parse_retry_after,
     resolve_api_key,
+    resolve_base_url,
 )
 from speechrevolutions._progress import resolve_progress as _resolve_progress
 from speechrevolutions._upload import aiter_with_progress
@@ -72,14 +73,14 @@ class AsyncSTTClient:
         self,
         api_key: str | None = None,
         *,
-        base_url: str = DEFAULT_BASE_URL,
+        base_url: str | None = None,
         timeout: float = 600.0,
         client: httpx.AsyncClient | None = None,
         max_retries: int = DEFAULT_MAX_RETRIES,
         retry_backoff: float = DEFAULT_RETRY_BACKOFF,
     ) -> None:
         self.api_key = resolve_api_key(api_key)
-        self.base_url = base_url.rstrip("/")
+        self.base_url = resolve_base_url(base_url)
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff

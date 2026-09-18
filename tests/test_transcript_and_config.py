@@ -157,3 +157,50 @@ def test_save_writes_bytes(tmp_path):
     t.save(str(out))
     assert out.exists()
     assert json.loads(out.read_text())["words"][0]["word"] == "Hello"
+
+
+# --------------------------------------------------------------------------
+# Base URL resolution
+# --------------------------------------------------------------------------
+
+def test_explicit_base_url_wins(monkeypatch):
+    from speechrevolutions._config import resolve_base_url
+    monkeypatch.setenv("SPEECHREVOLUTIONS_BASE_URL", "https://from-env.example")
+    assert resolve_base_url("https://explicit.example") == "https://explicit.example"
+
+
+def test_base_url_from_primary_env_var(monkeypatch):
+    from speechrevolutions._config import DEFAULT_BASE_URL, resolve_base_url
+    monkeypatch.delenv("STT_BASE_URL", raising=False)
+    monkeypatch.setenv("SPEECHREVOLUTIONS_BASE_URL", "https://staging.example")
+    assert resolve_base_url(None) == "https://staging.example"
+    assert DEFAULT_BASE_URL.startswith("https://")
+
+
+def test_base_url_legacy_env_var(monkeypatch):
+    from speechrevolutions._config import resolve_base_url
+    monkeypatch.delenv("SPEECHREVOLUTIONS_BASE_URL", raising=False)
+    monkeypatch.setenv("STT_BASE_URL", "https://legacy.example")
+    assert resolve_base_url(None) == "https://legacy.example"
+
+
+def test_base_url_defaults_to_production(monkeypatch):
+    from speechrevolutions._config import DEFAULT_BASE_URL, resolve_base_url
+    monkeypatch.delenv("SPEECHREVOLUTIONS_BASE_URL", raising=False)
+    monkeypatch.delenv("STT_BASE_URL", raising=False)
+    assert resolve_base_url(None) == DEFAULT_BASE_URL
+
+
+def test_base_url_trailing_slash_is_stripped(monkeypatch):
+    from speechrevolutions._config import resolve_base_url
+    monkeypatch.setenv("SPEECHREVOLUTIONS_BASE_URL", "https://x.example/")
+    assert resolve_base_url(None) == "https://x.example"
+    assert resolve_base_url("https://y.example/") == "https://y.example"
+
+
+def test_clients_pick_up_the_env_base_url(monkeypatch):
+    from speechrevolutions import AsyncSpeechRevolutions, SpeechRevolutions
+    monkeypatch.setenv("SPEECHREVOLUTIONS_BASE_URL", "https://staging.example")
+    monkeypatch.setenv("SPEECHREVOLUTIONS_API_KEY", "k")
+    assert SpeechRevolutions().base_url == "https://staging.example"
+    assert AsyncSpeechRevolutions().base_url == "https://staging.example"
