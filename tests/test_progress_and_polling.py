@@ -45,7 +45,9 @@ def test_progress_events_carry_percent_and_step(api, client):
     events = []
     client.transcribe(b"x" * 64, on_progress=events.append)
     assert [round(e.percent) for e in events] == [33, 67, 100]
-    assert all(e.step == "transcribing" for e in events)
+    # Verified live: steps are preprocess, then chunk:N per chunk, then
+    # aggregation — not a single generic label.
+    assert [e.step for e in events] == ["preprocess", "chunk:0", "aggregation"]
 
 
 def test_progress_events_carry_elapsed_time(api, client):

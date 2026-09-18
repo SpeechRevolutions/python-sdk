@@ -158,8 +158,12 @@ def test_output_type_srt_returns_subtitle_text(api, client):
 # ---------------------------------------------------------------------------
 
 def test_submit_returns_a_job_id_without_waiting(api, client):
+    import uuid
+
     job_id = client.submit(b"x" * 64)
-    assert job_id.startswith("job_")
+    # Production job ids are UUIDs; treat them as opaque, but check the shape so
+    # a mock that invents a different format cannot pass for the real thing.
+    uuid.UUID(job_id)
     # submit must NOT open the progress stream — that is the whole point.
     assert not [p for p in api.paths("GET") if p.endswith("/stream")]
 

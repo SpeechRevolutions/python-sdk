@@ -49,6 +49,7 @@ import time
 import urllib.request
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -95,8 +96,11 @@ class Job:
     uploaded: bytes = b""
     parts: dict[int, str] = field(default_factory=dict)
     completed_at: float = 0.0
+    created_at: str = ""
     failed_stage: str | None = None
     reason: str | None = None
+    duration_seconds: float = 12.5
+    rtf: float = 96.4
     options: dict = field(default_factory=dict)
 
 
@@ -192,13 +196,25 @@ class MockAPI:
     # -- webhook delivery, matching the platform ---------------------------
 
     def deliver_webhook(self, job: Job) -> None:
+        api_self = self
         """POST the completion notification exactly as aggregation_cluster does."""
         if not job.callback_url:
             return
-        payload: dict = {"status": job.status}
+        # Verified against a real delivery from production, 2026-09-18. A
+        # completion carries far more than a status: the presigned download_url
+        # is right there, so a receiver does not have to call get_transcript at
+        # all, plus the billed duration and the achieved RTF.
+        payload: dict
         if job.status == "failed":
-            payload["step"] = job.failed_stage
-            payload["reason"] = job.reason
+            payload = {"status": job.status, "step": job.failed_stage,
+                       "reason": job.reason}
+        else:
+            payload = {
+                "status": job.status,
+                "download_url": f"{api_self.base_url}/_result/{job.job_id}",
+                "duration_seconds": job.duration_seconds,
+                "rtf": job.rtf,
+            }
         body = json.dumps({"job_id": job.job_id, **payload}, separators=(",", ":")).encode()
         headers = {
             "Content-Type": "application/json",
@@ -317,7 +333,8 @@ def _make_handler(api: MockAPI):  # noqa: C901 - one dispatch table, read top to
 
         def _job_from_body(self, body: dict) -> Job:
             job = Job(
-                job_id=f"job_{uuid.uuid4().hex[:12]}",
+                job_id=str(uuid.uuid4()),
+                created_at=datetime.now(timezone.utc).isoformat(),
                 output_type=body.get("output_type", "json"),
                 callback_url=body.get("callback_url"),
                 options=body,
@@ -433,25 +450,43 @@ def _make_handler(api: MockAPI):  # noqa: C901 - one dispatch table, read top to
             job = api.jobs.get(job_id)
             if job is None:
                 return self._send(404, {"detail": "job not found"})
-            out: dict = {"job_id": job.job_id, "status": job.status}
-            if job.status == "completed":
-                out["download_url"] = f"{api.base_url}/_result/{job.job_id}"
-            if job.status == "failed":
-                out["failed_stage"] = job.failed_stage
-                out["reason"] = job.reason
+            # Mirrors GetJobResponse: every field is present, null when N/A.
+            out: dict = {
+                "job_id": job.job_id,
+                "status": job.status,
+                "download_url": (
+                    f"{api.base_url}/_result/{job.job_id}"
+                    if job.status == "completed" else None
+                ),
+                "llm_download_url": None,
+                "failed_stage": job.failed_stage,
+                "reason": job.reason,
+            }
             self._send(200, out)
 
         def _list_jobs(self, query: dict) -> None:
+            """Matches the live contract, verified against production 2026-09-18.
+
+            JobSummary is {job_id, created_at} — there is NO status field — and
+            `next_before` is the last row's created_at TIMESTAMP, not a job id.
+            An earlier version of this mock invented a status field and used the
+            job id as the cursor, which made the SDK suites pass against a shape
+            the API has never returned.
+            """
             limit = int(query.get("limit", ["50"])[0])
             before = query.get("before", [None])[0]
             with api._lock:
-                ordered = sorted(api.jobs.values(), key=lambda j: j.job_id, reverse=True)
+                ordered = sorted(
+                    api.jobs.values(), key=lambda j: j.created_at, reverse=True
+                )
             if before:
-                ordered = [j for j in ordered if j.job_id < before]
+                ordered = [j for j in ordered if j.created_at < before]
             page, rest = ordered[:limit], ordered[limit:]
             self._send(200, {
-                "jobs": [{"job_id": j.job_id, "status": j.status} for j in page],
-                "next_before": page[-1].job_id if page and rest else None,
+                "jobs": [
+                    {"job_id": j.job_id, "created_at": j.created_at} for j in page
+                ],
+                "next_before": page[-1].created_at if page and rest else None,
             })
 
         def _stream(self, job_id: str) -> None:
@@ -467,18 +502,37 @@ def _make_handler(api: MockAPI):  # noqa: C901 - one dispatch table, read top to
             self.send_header("Connection", "close")
             self.end_headers()
 
+            # Last-Event-ID is a Redis stream id, "<millis>-<seq>". Resume from
+            # the sequence part. Parsing it as a plain int (as this mock first
+            # did) silently restarts at 0 and replays everything — which is what
+            # test_reconnect_does_not_replay_events_already_seen exists to catch.
             resume = self.headers.get("Last-Event-ID")
-            start = int(resume) + 1 if resume and resume.isdigit() else 0
+            start = 0
+            if resume:
+                tail = resume.rsplit("-", 1)[-1]
+                if tail.isdigit():
+                    start = int(tail) + 1
 
             def emit(idx: int, event: str, data: dict) -> None:
-                chunk = f"id: {idx}\nevent: {event}\ndata: {json.dumps(data)}\n\n"
+                # Live ids are Redis stream ids ("1789756292748-0"), not ints.
+                eid = f"{int(time.time() * 1000)}-{idx}"
+                chunk = f"id: {eid}\nevent: {event}\ndata: {json.dumps(data)}\n\n"
                 self.wfile.write(chunk.encode())
                 self.wfile.flush()
 
             sent = 0
             for i in range(start, api.progress_steps):
+                # Real step labels, verified live: preprocess, then one per
+                # chunk (out of order — chunks finish as workers free up), then
+                # aggregation.
+                if i == 0:
+                    step = "preprocess"
+                elif i == api.progress_steps - 1:
+                    step = "aggregation"
+                else:
+                    step = f"chunk:{i - 1}"
                 emit(i, "progress", {"completed": i + 1, "total": api.progress_steps,
-                                     "step": "transcribing"})
+                                     "step": step})
                 sent += 1
                 if api.drop_stream_after is not None and sent >= api.drop_stream_after:
                     # Cut mid-stream, the way a dropped connection looks.

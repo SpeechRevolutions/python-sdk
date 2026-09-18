@@ -176,7 +176,9 @@ async def test_callback_url_is_plumbed_through_and_delivered(api):
             job_id = await c.submit("https://example.com/a.mp3", callback_url=rcv.url)
         assert api.only_job().callback_url == rcv.url
         event = json.loads(rcv.wait(1)[0]["raw"])
-    assert event == {"job_id": job_id, "status": "completed"}
+    assert event["job_id"] == job_id
+    assert event["status"] == "completed"
+    assert event["download_url"].startswith("http")
 
 
 # ---------------------------------------------------------------------------

@@ -157,7 +157,25 @@ def test_completion_webhook_is_delivered(receiver):
             job_id = c.submit("https://example.com/a.mp3", callback_url=receiver.url)
         got = receiver.wait(1)[0]
         event = json.loads(got["raw"])
-        assert event == {"job_id": job_id, "status": "completed"}
+        # Verified live: a completion carries the presigned download_url, the
+        # billed duration and the achieved RTF alongside the status. Assert the
+        # contract, not exact equality — extra fields must not break a receiver.
+        assert event["job_id"] == job_id
+        assert event["status"] == "completed"
+        assert event["download_url"].startswith("http")
+        assert event["duration_seconds"] > 0
+        assert event["rtf"] > 0
+
+
+def test_a_completion_webhook_carries_everything_needed_to_fetch_the_result(receiver):
+    """The payload is self-sufficient: no second API call is required."""
+    with MockAPI(progress_steps=1) as api:
+        with SpeechRevolutions(api_key="test-key", base_url=api.base_url) as c:
+            c.submit("https://example.com/a.mp3", callback_url=receiver.url)
+            event = json.loads(receiver.wait(1)[0]["raw"])
+            # Download straight from the URL in the webhook.
+            content = c.download_result(event["download_url"])
+    assert b"Good" in content
 
 
 def test_failure_webhook_carries_step_and_reason(receiver):
