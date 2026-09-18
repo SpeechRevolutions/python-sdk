@@ -518,10 +518,16 @@ def main() -> None:
     ap.add_argument("--api-key", default="test-key")
     ap.add_argument("--webhook-secret", default=None)
     ap.add_argument("--progress-steps", type=int, default=3)
+    ap.add_argument("--fail-at", default=None,
+                    help="fail every job at this stage, e.g. gpu_timestamps")
+    ap.add_argument("--stream-status", type=int, default=200,
+                    help="status for GET /jobs/{id}/stream; use 503 to force polling")
     args = ap.parse_args()
 
     api = MockAPI(api_key=args.api_key, webhook_secret=args.webhook_secret,
                   progress_steps=args.progress_steps)
+    api.fail_job_at = args.fail_at
+    api.stream_status = args.stream_status
     handler = _make_handler(api)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
     api._server = server
