@@ -14,6 +14,7 @@ import requests
 
 from speechrevolutions._audio import is_url, read_audio
 from speechrevolutions._config import (
+    USER_AGENT,
     DEFAULT_BASE_URL,
     DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_BACKOFF,
@@ -492,7 +493,11 @@ class STTClient:
     # ============================================================
 
     def _headers(self, *, accept: str | None = None) -> dict[str, str]:
-        headers = {"X-API-Key": self.api_key, "Content-Type": "application/json"}
+        headers = {
+            "X-API-Key": self.api_key,
+            "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
+        }
         if accept:
             headers["Accept"] = accept
         return headers

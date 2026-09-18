@@ -321,3 +321,97 @@ def test_webhook_is_delivered_by_the_real_pipeline(client, audio):
     if event["status"] == "completed":
         result = client.get_transcript(job_id)
         assert result.text.strip()
+
+
+# ---------------------------------------------------------------------------
+# The raw upload flow, and the paths the convenience methods hide
+#
+# These had no live coverage at all: create_upload_job, upload_audio,
+# touch_upload_progress, complete_upload, wait_for_result, download_result and
+# cancel_job were only ever exercised against the mock, which is a model of the
+# contract rather than the contract.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.slow
+def test_raw_upload_flow(client, audio):
+    """Drive the upload flow by hand, the way transcribe() does internally."""
+    data = audio.read_bytes()
+
+    job = client.create_upload_job(len(data))
+    assert job.job_id and job.upload_url and job.download_url
+    uuid.UUID(job.job_id)
+
+    client.upload_audio(job.upload_url, data, job_id=job.job_id)
+    client.touch_upload_progress(job.job_id)
+    client.complete_upload(job.job_id)
+
+    content, download_url = client.wait_for_result(job.job_id, job.download_url)
+    assert content, "wait_for_result returned no bytes"
+    assert download_url
+
+    # The same presigned URL is fetchable directly.
+    again = client.download_result(download_url)
+    assert again == content
+
+
+@pytest.mark.slow
+def test_cancel_a_job(client, audio):
+    """Cancel before completing the upload, so nothing is ever transcribed."""
+    job = client.create_upload_job(len(audio.read_bytes()))
+    client.cancel_job(job.job_id)
+
+
+@pytest.mark.slow
+def test_transcribe_file_alias(client, audio):
+    result = client.transcribe_file(str(audio))
+    assert result.text.strip()
+
+
+# ---------------------------------------------------------------------------
+# The async client
+#
+# It is a separate implementation, not a wrapper, and it had never been pointed
+# at the real API. The divergence that already bit us there — URLs downloaded
+# client-side instead of being handed to the server — was exactly the kind a
+# mock cannot catch.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_async_transcribe_a_real_file(audio):
+    from speechrevolutions import AsyncSpeechRevolutions
+
+    async with AsyncSpeechRevolutions(timeout=900) as c:
+        result = await c.transcribe(str(audio), speaker_labels=True)
+
+    assert result.text.strip(), "the async client returned an empty transcript"
+    assert result.words
+
+
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_async_submit_status_transcript_and_list(audio):
+    from speechrevolutions import AsyncSpeechRevolutions
+
+    async with AsyncSpeechRevolutions(timeout=900) as c:
+        job_id = await c.submit(str(audio))
+        uuid.UUID(job_id)
+
+        flags = await c.check_failed([job_id])
+        assert flags == [False]
+
+        deadline = time.monotonic() + 600
+        while time.monotonic() < deadline:
+            status = await c.get_job_status(job_id)
+            if status.is_completed:
+                break
+            assert not status.is_failed, f"failed: {status.failed_stage} {status.reason}"
+            await __import__("asyncio").sleep(5)
+        else:
+            pytest.fail("async job did not complete within 10 minutes")
+
+        result = await c.get_transcript(job_id)
+        assert result.text.strip()
+
+        page = await c.list_jobs(limit=3)
+        assert any(j["job_id"] == job_id for j in page["jobs"]) or page["jobs"]

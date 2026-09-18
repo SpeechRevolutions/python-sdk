@@ -119,3 +119,11 @@ def resolve_api_key(api_key: str | None) -> str:
         "api_key is required (pass api_key=... or set "
         "SPEECHREVOLUTIONS_API_KEY / STT_API_KEY)"
     )
+
+
+# Identifies the SDK to the platform, which makes a client-side problem findable
+# in our edge logs without the caller reproducing it. It is also insurance: the
+# edge answers a request with NO User-Agent with a bare 403, which is how the C#
+# client turned out to be unable to reach production at all while passing every
+# test that pointed at a local mock.
+USER_AGENT = "speechrevolutions-python/0.2.0"
