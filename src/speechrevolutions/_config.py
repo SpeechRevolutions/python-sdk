@@ -22,6 +22,21 @@ UPLOAD_BASE_DELAY = 1.0
 SSE_MAX_RECONNECTS = 10
 SSE_RECONNECT_DELAY = 3.0
 
+#: How many times to retry a stream endpoint that answered with a NON-2xx
+#: status, as opposed to one whose connection dropped.
+#:
+#: The two failures look the same to the reconnect loop and are not the same
+#: thing. A dropped connection is transient — the server was streaming a moment
+#: ago and will be again — so ten attempts on a 3s timer is right. A non-2xx
+#: status is a refusal: a proxy, load balancer or corporate egress that does not
+#: pass `text/event-stream` answers every attempt identically, forever. Retrying
+#: that ten times costs 30 seconds before the client falls back to polling, on
+#: EVERY job, which is longer than the median job takes to transcribe.
+#:
+#: Two attempts, so a genuinely transient 502/503 still gets a second chance,
+#: then fall back to polling — which works and is only marginally slower.
+SSE_MAX_STATUS_REFUSALS = 2
+
 POLL_INTERVAL = 5.0
 
 # Transient-failure retry policy for JSON API requests (not uploads/SSE, which

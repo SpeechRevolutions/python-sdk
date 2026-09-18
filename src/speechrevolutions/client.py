@@ -21,6 +21,7 @@ from speechrevolutions._config import (
     RETRY_BACKOFF_MAX,
     RETRY_STATUS_CODES,
     SSE_MAX_RECONNECTS,
+    SSE_MAX_STATUS_REFUSALS,
     SSE_RECONNECT_DELAY,
     UPLOAD_BASE_DELAY,
     UPLOAD_MAX_ATTEMPTS,
@@ -614,6 +615,7 @@ class STTClient:
         start = time.monotonic()
         last_event_id: str | None = None
         reconnects = 0
+        refusals = 0
 
         while True:
             if time.monotonic() - start >= timeout:
@@ -636,6 +638,14 @@ class STTClient:
                 return download_url or fallback_download_url
             if outcome == "failed":
                 raise JobFailedError("Job failed")
+            if outcome == "refused":
+                refusals += 1
+                if refusals >= SSE_MAX_STATUS_REFUSALS:
+                    # The endpoint is not going to start streaming. Fall back to
+                    # polling now rather than burning the full reconnect ladder.
+                    return None
+                reconnects += 1
+                continue
             if outcome == "timeout":
                 raise TimeoutError(f"Timed out after {timeout}s waiting for job {job_id}")
             reconnects += 1
@@ -678,7 +688,9 @@ class STTClient:
         if resp.status_code == 429:
             raise RateLimitError("Rate limit exceeded on SSE endpoint")
         if resp.status_code != 200:
-            return "reconnect", None, last_event_id
+            # A status, not a dropped connection: the endpoint answered and
+            # said no. Budgeted separately — see SSE_MAX_STATUS_REFUSALS.
+            return "refused", None, last_event_id
 
         try:
             for sse in parse_sse_stream(resp.iter_lines(decode_unicode=True)):
