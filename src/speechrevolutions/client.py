@@ -25,6 +25,7 @@ from speechrevolutions._config import (
     UPLOAD_BASE_DELAY,
     UPLOAD_MAX_ATTEMPTS,
     UPLOAD_PROGRESS_INTERVAL,
+    creates_job as _creates_job,
     extract_request_id,
     parse_retry_after,
     resolve_api_key,
@@ -503,6 +504,9 @@ class STTClient:
         timeout: float = 30,
     ) -> Any:
         url = f"{self.base_url}{path}"
+        # Job-creating calls retry only when the request provably never landed;
+        # anything else would risk a duplicate job and a duplicate charge.
+        creating = _creates_job(path)
         attempt = 0
         while True:
             attempt += 1
@@ -511,8 +515,11 @@ class STTClient:
                     method, url, headers=self._headers(), json=json, timeout=timeout
                 )
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
-                # Retry transient network failures with exponential backoff.
-                if attempt <= self.max_retries:
+                # A connect timeout means no connection was ever established, so
+                # the request cannot have been processed — safe to retry even for
+                # a create. A read timeout or a mid-flight reset is ambiguous.
+                safe = not creating or isinstance(exc, requests.exceptions.ConnectTimeout)
+                if safe and attempt <= self.max_retries:
                     time.sleep(self._retry_delay(attempt, None))
                     continue
                 if isinstance(exc, requests.exceptions.Timeout):
@@ -520,10 +527,13 @@ class STTClient:
                 raise APIError(f"Cannot connect to {self.base_url}") from exc
 
             # Retry throttling / transient server errors, honoring Retry-After.
+            # For a create, only 429 is safe: the server refused it outright, so
+            # no job exists. A 5xx may well have created one before failing.
             if resp.status_code in RETRY_STATUS_CODES and attempt <= self.max_retries:
-                retry_after = parse_retry_after(resp.headers.get("Retry-After"))
-                time.sleep(self._retry_delay(attempt, retry_after))
-                continue
+                if not creating or resp.status_code == 429:
+                    retry_after = parse_retry_after(resp.headers.get("Retry-After"))
+                    time.sleep(self._retry_delay(attempt, retry_after))
+                    continue
 
             self._raise_for_status(resp)
             if not resp.content:

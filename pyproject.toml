@@ -22,7 +22,7 @@ dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "tqdm>=4.65"]
 
 [project.urls]
 Homepage = "https://speechrevolutions.com"
-Documentation = "https://api.speechrevolutions.com"
+Documentation = "https://docs.speechrevolutions.com"
 
 [tool.setuptools.packages.find]
 where = ["src"]

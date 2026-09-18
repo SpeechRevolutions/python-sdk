@@ -25,6 +25,31 @@ DEFAULT_RETRY_BACKOFF = 0.5  # seconds; exponential (0.5, 1.0, 2.0, …), capped
 RETRY_BACKOFF_MAX = 30.0
 RETRY_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
+# Endpoints that CREATE a job, and so are not safe to blindly retry.
+#
+# A job is created the moment the server handles one of these; the response
+# carrying the job_id back is what can be lost. Retrying after the request may
+# have arrived creates a SECOND job for the same audio — two transcripts, two
+# charges — and the caller never learns about the orphan. The API has no
+# idempotency key, so the only safe rule is to retry these solely when the
+# request provably never reached the server: a connect timeout (no connection
+# was ever established) or a 429 (explicitly refused before any work).
+#
+# Every other endpoint either reads, or acts on a job_id the caller already
+# holds, and stays fully retryable.
+JOB_CREATING_PATHS = frozenset(
+    {
+        "/api/v1/upload",
+        "/api/v1/upload/multipart/create",
+    }
+)
+
+
+def creates_job(path: str) -> bool:
+    """True if `path` creates a job, and so must not be blindly retried."""
+    return path.split("?", 1)[0].rstrip("/") in JOB_CREATING_PATHS
+
+
 # Response headers checked (case-insensitively) for a correlation id.
 REQUEST_ID_HEADERS = ("x-request-id", "x-amzn-requestid", "cf-ray")
 

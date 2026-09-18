@@ -14,12 +14,19 @@ import httpx
 from speechrevolutions._audio import is_url
 from speechrevolutions._config import (
     DEFAULT_BASE_URL,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_BACKOFF,
     POLL_INTERVAL,
+    RETRY_BACKOFF_MAX,
+    RETRY_STATUS_CODES,
     SSE_MAX_RECONNECTS,
     SSE_RECONNECT_DELAY,
     UPLOAD_BASE_DELAY,
     UPLOAD_MAX_ATTEMPTS,
     UPLOAD_PROGRESS_INTERVAL,
+    creates_job as _creates_job,
+    extract_request_id,
+    parse_retry_after,
     resolve_api_key,
 )
 from speechrevolutions._progress import resolve_progress as _resolve_progress
@@ -68,10 +75,14 @@ class AsyncSTTClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = 600.0,
         client: httpx.AsyncClient | None = None,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        retry_backoff: float = DEFAULT_RETRY_BACKOFF,
     ) -> None:
         self.api_key = resolve_api_key(api_key)
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_backoff = retry_backoff
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=30.0))
 
@@ -368,35 +379,75 @@ class AsyncSTTClient:
         timeout: float = 30,
     ) -> Any:
         url = f"{self.base_url}{path}"
-        try:
-            resp = await self._client.request(
-                method, url, headers=self._headers(), json=json, timeout=timeout
-            )
-        except httpx.ConnectError as exc:
-            raise APIError(f"Cannot connect to {self.base_url}") from exc
-        except httpx.TimeoutException as exc:
-            raise TimeoutError(f"Request timed out: {method} {path}") from exc
+        # Job-creating calls retry only when the request provably never landed;
+        # anything else would risk a duplicate job and a duplicate charge.
+        creating = _creates_job(path)
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                resp = await self._client.request(
+                    method, url, headers=self._headers(), json=json, timeout=timeout
+                )
+            except httpx.TransportError as exc:
+                # These mean the connection was never established, so the request
+                # cannot have been processed — safe to retry even for a create.
+                never_sent = isinstance(
+                    exc, (httpx.ConnectTimeout, httpx.ConnectError, httpx.PoolTimeout)
+                )
+                if (never_sent or not creating) and attempt <= self.max_retries:
+                    await asyncio.sleep(self._retry_delay(attempt, None))
+                    continue
+                if isinstance(exc, httpx.TimeoutException):
+                    raise TimeoutError(f"Request timed out: {method} {path}") from exc
+                raise APIError(f"Cannot connect to {self.base_url}") from exc
 
-        self._raise_for_status(resp)
-        if not resp.content:
-            return {}
-        try:
-            return resp.json()
-        except ValueError:
-            return {"raw": resp.text}
+            # For a create, only 429 is safe to retry: the server refused it
+            # outright, so no job exists. A 5xx may have created one before failing.
+            if resp.status_code in RETRY_STATUS_CODES and attempt <= self.max_retries:
+                if not creating or resp.status_code == 429:
+                    retry_after = parse_retry_after(resp.headers.get("Retry-After"))
+                    await asyncio.sleep(self._retry_delay(attempt, retry_after))
+                    continue
+
+            self._raise_for_status(resp)
+            if not resp.content:
+                return {}
+            try:
+                return resp.json()
+            except ValueError:
+                return {"raw": resp.text}
+
+    def _retry_delay(self, attempt: int, retry_after: float | None) -> float:
+        if retry_after is not None:
+            return min(retry_after, RETRY_BACKOFF_MAX)
+        return min(self.retry_backoff * (2 ** (attempt - 1)), RETRY_BACKOFF_MAX)
 
     def _raise_for_status(self, resp: httpx.Response) -> None:
         if resp.status_code in (200, 204):
             return
+        request_id = extract_request_id(resp.headers)
         if resp.status_code == 401:
-            raise AuthenticationError("Unauthorized — check your API key")
+            raise AuthenticationError(
+                "Unauthorized — check your API key", status_code=401, request_id=request_id
+            )
         if resp.status_code == 404:
-            raise JobNotFoundError("Job not found or upload session expired")
+            raise JobNotFoundError(
+                "Job not found or upload session expired",
+                status_code=404,
+                request_id=request_id,
+            )
         if resp.status_code == 429:
-            raise RateLimitError("Rate limit exceeded — try again shortly")
+            raise RateLimitError(
+                "Rate limit exceeded — try again shortly",
+                status_code=429,
+                request_id=request_id,
+                retry_after=parse_retry_after(resp.headers.get("Retry-After")),
+            )
         raise APIError(
             f"Unexpected response (HTTP {resp.status_code})",
             status_code=resp.status_code,
+            request_id=request_id,
             body=resp.text[:300],
         )
 
