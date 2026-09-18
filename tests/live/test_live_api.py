@@ -66,6 +66,20 @@ def audio() -> Path:
     pytest.skip(f"no test audio found; looked in {[str(p) for p in AUDIO_CANDIDATES]}")
 
 
+@pytest.fixture
+def client_factory():
+    """Build a client with non-default settings, for the paths the module-scoped
+    client cannot reach (single-shot upload, say)."""
+    if not os.environ.get("SPEECHREVOLUTIONS_API_KEY"):
+        pytest.skip("SPEECHREVOLUTIONS_API_KEY is not set")
+
+    def make(**kwargs):
+        kwargs.setdefault("timeout", 900)
+        return SpeechRevolutions(**kwargs)
+
+    return make
+
+
 @pytest.fixture(scope="module")
 def client():
     if not os.environ.get("SPEECHREVOLUTIONS_API_KEY"):
@@ -415,3 +429,158 @@ async def test_async_submit_status_transcript_and_list(audio):
 
         page = await c.list_jobs(limit=3)
         assert any(j["job_id"] == job_id for j in page["jobs"]) or page["jobs"]
+
+
+# ---------------------------------------------------------------------------
+# Ingestion paths, output types, options and transforms
+#
+# The tests above cover the path most callers take. These cover the rest of the
+# published surface, so that "tested live" means every public method has
+# actually been run against production rather than only the common ones.
+#
+# The URL tests need a PUBLICLY reachable audio file, because the platform
+# fetches it server-side: SR_LIVE_AUDIO_URL=https://.../clip.mp3
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def audio_url() -> str:
+    url = os.environ.get("SR_LIVE_AUDIO_URL")
+    if not url:
+        pytest.skip(
+            "set SR_LIVE_AUDIO_URL to a publicly reachable audio file "
+            "(the platform fetches it server-side, so a local path will not do)"
+        )
+    return url
+
+
+@pytest.mark.slow
+def test_transcribe_url_is_fetched_server_side(client, audio_url):
+    explicit = client.transcribe_url(audio_url)
+    assert explicit.text.strip()
+
+    # transcribe() auto-detects an http(s) URL and must take the same path.
+    auto = client.transcribe(audio_url)
+    assert auto.text.strip()
+
+
+@pytest.mark.slow
+def test_submit_a_url(client, audio_url):
+    job_id = client.submit(audio_url)
+    uuid.UUID(job_id)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("output_type,contains", [
+    ("json", None),
+    ("txt", None),
+    ("srt", "-->"),
+    ("vtt", "-->"),
+    ("docx", None),
+    ("pdf", None),
+])
+def test_every_output_type(client, audio, output_type, contains):
+    """Only srt had ever been checked live, and docx/pdf render server-side."""
+    result = client.transcribe(str(audio), output_type=output_type)
+    assert result.content, f"{output_type} came back with no bytes"
+    if contains:
+        assert contains in result.text, f"{output_type}: {result.text[:120]}"
+    if output_type == "docx":
+        assert result.content.startswith(b"PK"), "docx is not a zip container"
+    if output_type == "pdf":
+        assert result.content.startswith(b"%PDF"), "pdf lacks the %PDF header"
+
+
+@pytest.mark.slow
+def test_transcribe_options_against_the_real_model(client, audio):
+    # diarize is the Deepgram-compatible alias for speaker_labels.
+    diarized = client.transcribe(str(audio), diarize=True)
+    assert diarized.utterances, "diarize produced no utterances"
+
+    vocab = client.transcribe(str(audio), custom_vocabulary=["Kyiv", "Dnipro"])
+    assert vocab.text.strip()
+
+    no_ts = client.transcribe(str(audio), word_timestamps=False)
+    assert no_ts.text.strip()
+
+
+@pytest.mark.slow
+def test_single_shot_upload_path(client_factory, audio):
+    """The single presigned PUT, rather than the multipart flow used by default."""
+    with client_factory(multipart=False) as c:
+        result = c.transcribe(str(audio))
+    assert result.text.strip(), "empty transcript from the single-shot upload path"
+
+
+@pytest.mark.slow
+def test_transcript_transforms_on_a_real_response(client, audio):
+    """A mock can hand back a shape these happen to survive; production is the
+    real input."""
+    result = client.transcribe(str(audio), speaker_labels=True)
+
+    d = result.to_dict()
+    assert {"id", "text", "words", "utterances"} <= set(d)
+
+    dg = result.to_deepgram()
+    assert "results" in dg, f"to_deepgram has no results key: {list(dg)}"
+
+    blob = result.to_json()
+    assert json.loads(blob)["text"] == result.text
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        written = result.save(str(Path(tmp) / "out"))
+        assert written.endswith(".json"), written
+        assert Path(written).stat().st_size > 0
+
+
+# ---------------------------------------------------------------------------
+# The async client's remaining surface
+# ---------------------------------------------------------------------------
+
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_async_raw_upload_flow_and_cancel(audio):
+    from speechrevolutions import AsyncSpeechRevolutions
+
+    data = audio.read_bytes()
+    async with AsyncSpeechRevolutions(timeout=900) as c:
+        job = await c.create_upload_job(len(data))
+        assert job.job_id and job.upload_url
+
+        await c.upload_audio(job.upload_url, data, job_id=job.job_id)
+        await c.touch_upload_progress(job.job_id)
+        await c.complete_upload(job.job_id)
+
+        content, download_url = await c.wait_for_result(job.job_id, job.download_url)
+        assert content, "async wait_for_result returned no bytes"
+
+        again = await c.download_result(download_url)
+        assert again == content
+
+        # Cancel a job that was never completed, so nothing is transcribed.
+        doomed = await c.create_upload_job(len(data))
+        await c.cancel_job(doomed.job_id)
+
+
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_async_transcribe_file(audio):
+    from speechrevolutions import AsyncSpeechRevolutions
+
+    async with AsyncSpeechRevolutions(timeout=900) as c:
+        from_file = await c.transcribe_file(str(audio))
+    assert from_file.text.strip()
+
+
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_async_transcribe_url(audio_url):
+    """Kept separate from the file path because it depends on the platform
+    fetching a URL, which is a different pipeline from an upload."""
+    from speechrevolutions import AsyncSpeechRevolutions
+
+    async with AsyncSpeechRevolutions(timeout=900) as c:
+        # The async client used to download URLs client-side instead of handing
+        # them to the server. Nothing but a live call can tell the difference.
+        from_url = await c.transcribe_url(audio_url)
+    assert from_url.text.strip()
