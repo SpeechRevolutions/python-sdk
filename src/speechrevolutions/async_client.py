@@ -128,33 +128,22 @@ class AsyncSTTClient:
             custom_vocabulary=custom_vocabulary,
             callback_url=callback_url,
         )
-        data, file_size = await self._read_audio(audio)
-        job = await self.create_upload_job(file_size, opts)
-
-        upload_cb, upload_printer = _resolve_progress(
-            on_upload_progress, progress, label="Uploading", bytes_mode=True
+        job_id, job_download_url = await self._ingest_audio(
+            audio, opts, on_upload_progress=on_upload_progress, progress=progress
         )
-        try:
-            await self.upload_audio(
-                job.upload_url, data, job_id=job.job_id, on_progress=upload_cb
-            )
-        finally:
-            if upload_printer is not None:
-                upload_printer.close()
-        await self.complete_upload(job.job_id)
 
         progress_cb, printer = _resolve_progress(on_progress, progress)
         try:
             content, download_url = await self.wait_for_result(
-                job.job_id,
-                job.download_url,
+                job_id,
+                job_download_url,
                 on_progress=progress_cb,
             )
         finally:
             if printer is not None:
                 printer.close()
         return parse_transcript(
-            job_id=job.job_id,
+            job_id=job_id,
             content=content,
             output_type=opts.normalized_output_type(),
             download_url=download_url,
@@ -199,20 +188,10 @@ class AsyncSTTClient:
             custom_vocabulary=custom_vocabulary,
             callback_url=callback_url,
         )
-        data, file_size = await self._read_audio(audio)
-        job = await self.create_upload_job(file_size, opts)
-        upload_cb, upload_printer = _resolve_progress(
-            on_upload_progress, progress, label="Uploading", bytes_mode=True
+        job_id, _ = await self._ingest_audio(
+            audio, opts, on_upload_progress=on_upload_progress, progress=progress
         )
-        try:
-            await self.upload_audio(
-                job.upload_url, data, job_id=job.job_id, on_progress=upload_cb
-            )
-        finally:
-            if upload_printer is not None:
-                upload_printer.close()
-        await self.complete_upload(job.job_id)
-        return job.job_id
+        return job_id
 
     # ============================================================
     # UPLOAD FLOW
@@ -634,6 +613,42 @@ class AsyncSTTClient:
                 await asyncio.sleep(POLL_INTERVAL)
 
         raise TimeoutError(f"Job {job_id} did not complete within {timeout}s")
+
+    async def _ingest_audio(
+        self,
+        audio: str | Path | bytes | BinaryIO,
+        opts: TranscribeOptions,
+        *,
+        on_upload_progress: ProgressCallback | None = None,
+        progress: bool = False,
+    ) -> tuple[str, str]:
+        """Get the audio into the platform and return ``(job_id, download_url)``.
+
+        A URL is handed to the server to fetch (no client upload), exactly as the
+        sync client does. Downloading it here instead would double the bandwidth,
+        break for URLs only the platform can reach, and cap the job at whatever
+        the client can hold in memory.
+        """
+        if isinstance(audio, (str, Path)) and is_url(str(audio)):
+            data = await self._api_request(
+                "POST", "/api/v1/upload", json=opts.to_payload(audio_url=str(audio))
+            )
+            return str(data["job_id"]), data["download_url"]
+
+        content, file_size = await self._read_audio(audio)
+        job = await self.create_upload_job(file_size, opts)
+        upload_cb, upload_printer = _resolve_progress(
+            on_upload_progress, progress, label="Uploading", bytes_mode=True
+        )
+        try:
+            await self.upload_audio(
+                job.upload_url, content, job_id=job.job_id, on_progress=upload_cb
+            )
+        finally:
+            if upload_printer is not None:
+                upload_printer.close()
+        await self.complete_upload(job.job_id)
+        return job.job_id, job.download_url
 
     async def _read_audio(self, audio: str | Path | bytes | BinaryIO) -> tuple[bytes, int]:
         if isinstance(audio, (str, Path)):

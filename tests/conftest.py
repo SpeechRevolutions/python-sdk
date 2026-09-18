@@ -55,12 +55,33 @@ class RecordingSession(requests.Session):
 
 
 @pytest.fixture(autouse=True)
-def no_sleep(monkeypatch):
-    """Retry backoff is real seconds; collapse it so the suite stays fast."""
-    monkeypatch.setattr("time.sleep", lambda *_: None)
+def no_sleep(monkeypatch, request):
+    """Collapse retry backoff so the suite stays fast.
+
+    This makes the functional tests quick, but it also means they say NOTHING
+    about how long a retry ladder actually takes in production. Anything
+    asserting real elapsed time must opt out with `@pytest.mark.real_sleep`
+    — see tests/test_timing_behaviour.py, which pins the costs this would
+    otherwise hide.
+    """
+    if "real_sleep" in request.keywords:
+        return
+
+    import asyncio as _asyncio
+
+    import speechrevolutions.async_client as async_mod
     import speechrevolutions.client as client_mod
 
+    monkeypatch.setattr("time.sleep", lambda *_: None)
     monkeypatch.setattr(client_mod.time, "sleep", lambda *_: None)
+
+    # The async client sleeps via asyncio, which the sync patch above does not
+    # touch — without this its retry ladders run at full wall-clock cost.
+    async def _instant(*_a: object, **_k: object) -> None:
+        return None
+
+    monkeypatch.setattr(async_mod.asyncio, "sleep", _instant)
+    monkeypatch.setattr(_asyncio, "sleep", _instant)
 
 
 @pytest.fixture
