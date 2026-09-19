@@ -34,12 +34,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: The tag and pyproject must agree
+      - name: The tag, pyproject and the built package must agree
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           PKG=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           echo "tag=$TAG pyproject=$PKG"
           [ "$TAG" = "$PKG" ] || { echo "::error::tag $TAG != pyproject $PKG"; exit 1; }
+
+          # 0.2.1 shipped with pyproject bumped and __version__ left at 0.2.0,
+          # so the package reported a version it was not. Checking the tag alone
+          # would not have caught it; this installs the thing and asks it.
+          pip install -q .
+          RUNTIME=$(cd /tmp && python -c "import speechrevolutions; print(speechrevolutions.__version__)")
+          echo "__version__=$RUNTIME"
+          [ "$TAG" = "$RUNTIME" ] || { echo "::error::tag $TAG != __version__ $RUNTIME"; exit 1; }
 
   publish:
     needs: [test, version-matches-tag]
