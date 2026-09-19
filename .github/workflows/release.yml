@@ -1,0 +1,57 @@
+# Publish to PyPI when a version tag is pushed.
+#
+# The tests run first and the publish depends on them, so a tag can never ship
+# a build that did not pass. That ordering is the entire point: a PyPI version
+# number can never be reused, even after deletion, so there is no fixing it
+# afterwards.
+#
+# Uses PyPI Trusted Publishing (OIDC) rather than a long-lived token. Configure
+# it once at https://pypi.org/manage/account/publishing/ with:
+#   owner SpeechRevolutions, repo python-sdk, workflow release.yml
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      # tests/live talks to production and needs a key; it is deliberately not
+      # part of the release gate.
+      - run: pytest tests --ignore=tests/live -q
+
+  version-matches-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag and pyproject must agree
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "tag=$TAG pyproject=$PKG"
+          [ "$TAG" = "$PKG" ] || { echo "::error::tag $TAG != pyproject $PKG"; exit 1; }
+
+  publish:
+    needs: [test, version-matches-tag]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write          # required for Trusted Publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
