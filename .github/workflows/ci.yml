@@ -1,0 +1,29 @@
+# Tests on every push to main and every pull request.
+#
+# The release workflow runs the same suite, but only once a tag exists. That is
+# late for two reasons: a contributor opening a pull request against a public
+# repo gets no signal at all, and a break landed on main is only discovered by
+# whoever next cuts a release. Keeping main green means the commit being tagged
+# was already known good.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      # tests/live talks to production and needs a key; it is deliberately not
+      # part of the gate.
+      - run: pytest tests --ignore=tests/live -q
