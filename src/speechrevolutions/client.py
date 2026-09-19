@@ -67,7 +67,7 @@ class _MultipartUnavailable(Exception):
     """Internal signal that a multipart upload should fall back to single-shot."""
 
 
-class STTClient:
+class SpeechRevolutions:
     """
     Synchronous client for the Speech Revolutions speech-to-text API.
 
@@ -776,16 +776,18 @@ class STTClient:
     def close(self) -> None:
         self._session.close()
 
-    def __enter__(self) -> STTClient:
+    def __enter__(self) -> SpeechRevolutions:
         return self
 
     def __exit__(self, *args: object) -> None:
         self.close()
 
 
-# Friendly aliases (match DeepgramClient / ElevenLabs naming)
-SpeechRevolutions = STTClient
-SpeechRevolutionsClient = STTClient
+# The class is named for what a user types and what the docs show, so a repr or a
+# traceback names it too. The older spellings stay as aliases: they were public in
+# 0.2.0 and cost nothing to keep.
+STTClient = SpeechRevolutions
+SpeechRevolutionsClient = SpeechRevolutions
 
 
 def _as_int(value: Any) -> int | None:

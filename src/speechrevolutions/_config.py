@@ -40,7 +40,7 @@ SSE_MAX_STATUS_REFUSALS = 2
 POLL_INTERVAL = 5.0
 
 # Transient-failure retry policy for JSON API requests (not uploads/SSE, which
-# have their own retry loops). Overridable per-client via STTClient(...).
+# have their own retry loops). Overridable per-client via SpeechRevolutions(...).
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_BACKOFF = 0.5  # seconds; exponential (0.5, 1.0, 2.0, …), capped
 RETRY_BACKOFF_MAX = 30.0

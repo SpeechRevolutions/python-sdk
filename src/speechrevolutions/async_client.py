@@ -58,7 +58,7 @@ from speechrevolutions.models import (
 from speechrevolutions.transcript import Transcript, parse_transcript
 
 
-class AsyncSTTClient:
+class AsyncSpeechRevolutions:
     """
     Async client for the Speech Revolutions speech-to-text API.
 
@@ -707,15 +707,15 @@ class AsyncSTTClient:
         if self._owns_client:
             await self._client.aclose()
 
-    async def __aenter__(self) -> AsyncSTTClient:
+    async def __aenter__(self) -> AsyncSpeechRevolutions:
         return self
 
     async def __aexit__(self, *args: object) -> None:
         await self.aclose()
 
 
-AsyncSpeechRevolutions = AsyncSTTClient
-AsyncSpeechRevolutionsClient = AsyncSTTClient
+AsyncSTTClient = AsyncSpeechRevolutions
+AsyncSpeechRevolutionsClient = AsyncSpeechRevolutions
 
 
 def _as_int(value: Any) -> int | None:
