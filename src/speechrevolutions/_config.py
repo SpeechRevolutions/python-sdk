@@ -126,4 +126,24 @@ def resolve_api_key(api_key: str | None) -> str:
 # edge answers a request with NO User-Agent with a bare 403, which is how the C#
 # client turned out to be unable to reach production at all while passing every
 # test that pointed at a local mock.
-USER_AGENT = "speechrevolutions-python/0.2.0"
+def _sdk_version() -> str:
+    """The installed distribution's version.
+
+    Derived, not written out. This string said 0.2.0 while PyPI served 0.2.2 --
+    the same drift that shipped ``__version__ = "0.2.0"`` in the 0.2.1 wheel,
+    because the version was stated in two places and only one was bumped. A
+    User-Agent exists to answer "which version is that caller running", so a
+    stale one is not cosmetic: it is a wrong answer to its only question.
+    """
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+
+        return version("speechrevolutions")
+    except PackageNotFoundError:
+        # Running from a source tree with nothing installed.
+        return "0.0.0.dev0"
+    except Exception:
+        return "0.0.0.dev0"
+
+
+USER_AGENT = f"speechrevolutions-python/{_sdk_version()}"
