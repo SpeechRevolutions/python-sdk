@@ -147,7 +147,7 @@ Or `SpeechRevolutions(api_key="stt_...")`.
 
 Speech Revolutions also publishes SDKs for
 [JavaScript/TypeScript](https://github.com/SpeechRevolutions/node-sdk),
-[Go](https://github.com/SpeechRevolutions/go-sdk), and
+[Go](https://github.com/SpeechRevolutions/speechrevolutions-go), and
 [C#/.NET](https://github.com/SpeechRevolutions/csharp-sdk) — see
 [docs.speechrevolutions.com](https://docs.speechrevolutions.com) for a
 cross-language feature comparison.
