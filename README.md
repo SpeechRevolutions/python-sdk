@@ -72,7 +72,7 @@ result = client.transcribe("meeting.mp3", progress=True)
 
 # 2. Programmatic — read event.percent (0–100) to drive your own UI / API
 def on_progress(event):        # transcription
-    print(event.percent, event.step)      # e.g. 42.0 "transcribe"
+    print(event.percent, event.step)      # e.g. 50.0 "chunk:0"
 
 def on_upload(event):          # upload (event.step == "upload")
     print("upload", event.percent)
