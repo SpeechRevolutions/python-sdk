@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "speechrevolutions"
-version = "0.2.3"
+version = "0.3.0"
 description = "Official Python SDK for the Speech Revolutions speech-to-text API"
 readme = "README.md"
 requires-python = ">=3.9"

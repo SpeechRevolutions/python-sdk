@@ -7,13 +7,13 @@ import os
 from speechrevolutions.exceptions import AuthenticationError
 
 DEFAULT_BASE_URL = "https://api.speechrevolutions.com"
-ENV_API_KEY_NAMES = ("SPEECHREVOLUTIONS_API_KEY", "STT_API_KEY")
+ENV_API_KEY_NAMES = ("SPEECHREVOLUTIONS_API_KEY",)
 
 #: Overrides the API host. Symmetric with the key: if a caller can supply an
 #: API key from the environment, they can point it at an environment too.
 #: Needed for staging, for an egress proxy or gateway, and for running any
 #: published example (the cookbook) against something that is not production.
-ENV_BASE_URL_NAMES = ("SPEECHREVOLUTIONS_BASE_URL", "STT_BASE_URL")
+ENV_BASE_URL_NAMES = ("SPEECHREVOLUTIONS_BASE_URL",)
 
 UPLOAD_PROGRESS_INTERVAL = 10
 UPLOAD_MAX_ATTEMPTS = 4
@@ -116,8 +116,7 @@ def resolve_api_key(api_key: str | None) -> str:
         if value:
             return value
     raise AuthenticationError(
-        "api_key is required (pass api_key=... or set "
-        "SPEECHREVOLUTIONS_API_KEY / STT_API_KEY)"
+        "api_key is required (pass api_key=... or set SPEECHREVOLUTIONS_API_KEY)"
     )
 
 

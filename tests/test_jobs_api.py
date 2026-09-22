@@ -13,7 +13,7 @@ from speechrevolutions.exceptions import (
     AuthenticationError,
     JobFailedError,
     JobNotFoundError,
-    STTError,
+    SpeechRevolutionsError,
 )
 
 
@@ -131,7 +131,7 @@ def test_get_transcript_on_a_failed_job_raises(api, client):
 def test_get_transcript_while_still_processing_raises(api, client):
     # Upload without completing, so the job never leaves "processing".
     job = client.create_upload_job(1024)
-    with pytest.raises(STTError):
+    with pytest.raises(SpeechRevolutionsError):
         client.get_transcript(job.job_id)
 
 
@@ -185,7 +185,7 @@ def test_download_result_returns_raw_bytes(api, client):
 
 
 def test_download_result_on_a_missing_object_raises(api, client):
-    with pytest.raises(STTError):
+    with pytest.raises(SpeechRevolutionsError):
         client.download_result(f"{api.base_url}/_result/job_nope")
 
 

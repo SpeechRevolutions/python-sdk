@@ -43,7 +43,7 @@ from speechrevolutions.exceptions import (
     JobFailedError,
     JobNotFoundError,
     RateLimitError,
-    STTError,
+    SpeechRevolutionsError,
     TimeoutError,
     UploadError,
 )
@@ -75,7 +75,7 @@ class SpeechRevolutions:
 
         from speechrevolutions import SpeechRevolutions
 
-        client = SpeechRevolutions()  # reads SPEECHREVOLUTIONS_API_KEY or STT_API_KEY
+        client = SpeechRevolutions()  # reads SPEECHREVOLUTIONS_API_KEY
         result = client.transcribe("meeting.mp3", speaker_labels=True)
         print(result.text)
     """
@@ -460,7 +460,7 @@ class SpeechRevolutions:
     def get_transcript(self, job_id: str, *, output_type: str = "json") -> Transcript:
         """Fetch and parse a completed job's transcript by id.
 
-        Raises :class:`JobFailedError` if the job failed, or :class:`STTError`
+        Raises :class:`JobFailedError` if the job failed, or :class:`SpeechRevolutionsError`
         if it is still processing (poll ``get_job_status`` for that case).
         """
         status = self.get_job_status(job_id)
@@ -469,7 +469,7 @@ class SpeechRevolutions:
                 f"Job {job_id} failed", step=status.failed_stage, reason=status.reason
             )
         if not status.is_completed or not status.download_url:
-            raise STTError(f"Job {job_id} is not complete (status={status.status})")
+            raise SpeechRevolutionsError(f"Job {job_id} is not complete (status={status.status})")
         content = self.download_result(status.download_url)
         return parse_transcript(
             job_id=job_id,
@@ -758,7 +758,7 @@ class SpeechRevolutions:
                     raise JobFailedError(f"Job {job_id} has failed")
             except (AuthenticationError, JobFailedError):
                 raise
-            except STTError:
+            except SpeechRevolutionsError:
                 pass
 
             try:
@@ -784,9 +784,7 @@ class SpeechRevolutions:
 
 
 # The class is named for what a user types and what the docs show, so a repr or a
-# traceback names it too. The older spellings stay as aliases: they were public in
-# 0.2.0 and cost nothing to keep.
-STTClient = SpeechRevolutions
+# traceback names it too. SpeechRevolutionsClient matches the C# client's name.
 SpeechRevolutionsClient = SpeechRevolutions
 
 

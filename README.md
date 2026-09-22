@@ -19,7 +19,7 @@ pip install "speechrevolutions[progress]"
 ```python
 from speechrevolutions import SpeechRevolutions
 
-client = SpeechRevolutions()  # reads SPEECHREVOLUTIONS_API_KEY or STT_API_KEY
+client = SpeechRevolutions()  # reads SPEECHREVOLUTIONS_API_KEY
 result = client.transcribe("meeting.mp3", speaker_labels=True)
 print(result.text)
 
@@ -137,8 +137,6 @@ typed (`RateLimitError`, `AuthenticationError`, …) and carry `.status_code` an
 
 ```bash
 export SPEECHREVOLUTIONS_API_KEY=stt_...
-# or
-export STT_API_KEY=stt_...
 ```
 
 Or `SpeechRevolutions(api_key="stt_...")`.

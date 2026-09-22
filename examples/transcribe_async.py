@@ -10,7 +10,7 @@ from speechrevolutions import AsyncSpeechRevolutions
 
 
 async def main() -> None:
-    # Reads the key from SPEECHREVOLUTIONS_API_KEY or STT_API_KEY.
+    # Reads the key from SPEECHREVOLUTIONS_API_KEY.
     # `async with` closes the underlying httpx client on exit.
     async with AsyncSpeechRevolutions() as client:
         result = await client.transcribe(

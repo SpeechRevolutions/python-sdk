@@ -29,20 +29,21 @@ def test_explicit_key_wins(monkeypatch):
 
 
 def test_primary_env_var(monkeypatch):
-    monkeypatch.delenv("STT_API_KEY", raising=False)
     monkeypatch.setenv("SPEECHREVOLUTIONS_API_KEY", "abc")
     assert resolve_api_key(None) == "abc"
 
 
-def test_legacy_env_var_still_works(monkeypatch):
+def test_pre_rebrand_env_var_is_not_read(monkeypatch):
+    """One variable per setting. STT_API_KEY predates the rebrand; a key left in it
+    must not be picked up silently, or two names for one secret drift apart."""
     monkeypatch.delenv("SPEECHREVOLUTIONS_API_KEY", raising=False)
-    monkeypatch.setenv("STT_API_KEY", "legacy")
-    assert resolve_api_key(None) == "legacy"
+    monkeypatch.setenv("STT_API_KEY", "stale")
+    with pytest.raises(AuthenticationError):
+        resolve_api_key(None)
 
 
 def test_missing_key_raises(monkeypatch):
     monkeypatch.delenv("SPEECHREVOLUTIONS_API_KEY", raising=False)
-    monkeypatch.delenv("STT_API_KEY", raising=False)
     with pytest.raises(AuthenticationError):
         resolve_api_key(None)
 
@@ -171,23 +172,23 @@ def test_explicit_base_url_wins(monkeypatch):
 
 def test_base_url_from_primary_env_var(monkeypatch):
     from speechrevolutions._config import DEFAULT_BASE_URL, resolve_base_url
-    monkeypatch.delenv("STT_BASE_URL", raising=False)
     monkeypatch.setenv("SPEECHREVOLUTIONS_BASE_URL", "https://staging.example")
     assert resolve_base_url(None) == "https://staging.example"
     assert DEFAULT_BASE_URL.startswith("https://")
 
 
-def test_base_url_legacy_env_var(monkeypatch):
-    from speechrevolutions._config import resolve_base_url
+def test_pre_rebrand_base_url_env_var_is_not_read(monkeypatch):
+    """STT_BASE_URL predates the rebrand. Honouring it would let a stale variable
+    silently point the client at the wrong host."""
+    from speechrevolutions._config import DEFAULT_BASE_URL, resolve_base_url
     monkeypatch.delenv("SPEECHREVOLUTIONS_BASE_URL", raising=False)
-    monkeypatch.setenv("STT_BASE_URL", "https://legacy.example")
-    assert resolve_base_url(None) == "https://legacy.example"
+    monkeypatch.setenv("STT_BASE_URL", "https://stale.example")
+    assert resolve_base_url(None) == DEFAULT_BASE_URL
 
 
 def test_base_url_defaults_to_production(monkeypatch):
     from speechrevolutions._config import DEFAULT_BASE_URL, resolve_base_url
     monkeypatch.delenv("SPEECHREVOLUTIONS_BASE_URL", raising=False)
-    monkeypatch.delenv("STT_BASE_URL", raising=False)
     assert resolve_base_url(None) == DEFAULT_BASE_URL
 
 

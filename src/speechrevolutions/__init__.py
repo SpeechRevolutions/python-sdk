@@ -1,13 +1,13 @@
 """Speech Revolutions STT Python SDK."""
 
-from speechrevolutions.client import SpeechRevolutions, SpeechRevolutionsClient, STTClient
+from speechrevolutions.client import SpeechRevolutions, SpeechRevolutionsClient
 from speechrevolutions.exceptions import (
     APIError,
     AuthenticationError,
     JobFailedError,
     JobNotFoundError,
     RateLimitError,
-    STTError,
+    SpeechRevolutionsError,
     TimeoutError,
     UploadError,
 )
@@ -23,10 +23,8 @@ from speechrevolutions.transcript import LanguageSegment, Transcript, Utterance,
 
 __all__ = [
     # Clients
-    "STTClient",
     "SpeechRevolutions",
     "SpeechRevolutionsClient",
-    "AsyncSTTClient",
     "AsyncSpeechRevolutions",
     "AsyncSpeechRevolutionsClient",
     # Models
@@ -41,7 +39,7 @@ __all__ = [
     "Utterance",
     "LanguageSegment",
     # Errors
-    "STTError",
+    "SpeechRevolutionsError",
     "AuthenticationError",
     "RateLimitError",
     "JobNotFoundError",
@@ -64,15 +62,13 @@ except PackageNotFoundError:  # running from a checkout with nothing installed
 
 def __getattr__(name: str):
     """Lazy-load async client so sync users don't need httpx until they import it."""
-    if name in {"AsyncSTTClient", "AsyncSpeechRevolutions", "AsyncSpeechRevolutionsClient"}:
+    if name in {"AsyncSpeechRevolutions", "AsyncSpeechRevolutionsClient"}:
         from speechrevolutions.async_client import (
             AsyncSpeechRevolutions,
             AsyncSpeechRevolutionsClient,
-            AsyncSTTClient,
         )
 
         mapping = {
-            "AsyncSTTClient": AsyncSTTClient,
             "AsyncSpeechRevolutions": AsyncSpeechRevolutions,
             "AsyncSpeechRevolutionsClient": AsyncSpeechRevolutionsClient,
         }

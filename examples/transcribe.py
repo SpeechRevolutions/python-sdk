@@ -8,7 +8,7 @@ from speechrevolutions import SpeechRevolutions
 
 
 def main() -> None:
-    # Reads the key from SPEECHREVOLUTIONS_API_KEY or STT_API_KEY.
+    # Reads the key from SPEECHREVOLUTIONS_API_KEY.
     client = SpeechRevolutions()
 
     result = client.transcribe(

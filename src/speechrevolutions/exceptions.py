@@ -8,7 +8,7 @@ logs. ``RateLimitError`` also exposes ``retry_after`` seconds.
 from __future__ import annotations
 
 
-class STTError(Exception):
+class SpeechRevolutionsError(Exception):
     """Base exception for all Speech Revolutions SDK errors."""
 
     def __init__(
@@ -30,11 +30,11 @@ class STTError(Exception):
         return f"{self.message}{suffix}"
 
 
-class AuthenticationError(STTError):
+class AuthenticationError(SpeechRevolutionsError):
     """Raised when the API key is missing or rejected (HTTP 401)."""
 
 
-class RateLimitError(STTError):
+class RateLimitError(SpeechRevolutionsError):
     """Raised when the API rate limit is exceeded (HTTP 429)."""
 
     def __init__(self, message: str, *, retry_after: float | None = None, **kwargs: object):
@@ -42,11 +42,11 @@ class RateLimitError(STTError):
         self.retry_after = retry_after
 
 
-class JobNotFoundError(STTError):
+class JobNotFoundError(SpeechRevolutionsError):
     """Raised when a job ID is unknown or its upload session expired (HTTP 404)."""
 
 
-class JobFailedError(STTError):
+class JobFailedError(SpeechRevolutionsError):
     """Raised when the transcription pipeline reports a failure."""
 
     def __init__(
@@ -62,13 +62,13 @@ class JobFailedError(STTError):
         self.reason = reason
 
 
-class UploadError(STTError):
+class UploadError(SpeechRevolutionsError):
     """Raised when the audio upload to object storage fails."""
 
 
-class TimeoutError(STTError):  # noqa: A001 — mirrors stdlib name intentionally
+class TimeoutError(SpeechRevolutionsError):  # noqa: A001 — mirrors stdlib name intentionally
     """Raised when waiting for a job exceeds the configured timeout."""
 
 
-class APIError(STTError):
+class APIError(SpeechRevolutionsError):
     """Raised for unexpected non-success HTTP responses from the API."""

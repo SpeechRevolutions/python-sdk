@@ -41,7 +41,7 @@ from speechrevolutions.exceptions import (
     JobFailedError,
     JobNotFoundError,
     RateLimitError,
-    STTError,
+    SpeechRevolutionsError,
     TimeoutError,
     UploadError,
 )
@@ -317,7 +317,7 @@ class AsyncSpeechRevolutions:
     async def get_transcript(self, job_id: str, *, output_type: str = "json") -> Transcript:
         """Fetch and parse a completed job's transcript by id.
 
-        Raises :class:`JobFailedError` if the job failed, or :class:`STTError`
+        Raises :class:`JobFailedError` if the job failed, or :class:`SpeechRevolutionsError`
         if it is still processing (poll ``get_job_status`` for that case).
         """
         status = await self.get_job_status(job_id)
@@ -326,7 +326,7 @@ class AsyncSpeechRevolutions:
                 f"Job {job_id} failed", step=status.failed_stage, reason=status.reason
             )
         if not status.is_completed or not status.download_url:
-            raise STTError(f"Job {job_id} is not complete (status={status.status})")
+            raise SpeechRevolutionsError(f"Job {job_id} is not complete (status={status.status})")
         content = await self.download_result(status.download_url)
         return parse_transcript(
             job_id=job_id,
@@ -618,7 +618,7 @@ class AsyncSpeechRevolutions:
                     raise JobFailedError(f"Job {job_id} has failed")
             except (AuthenticationError, JobFailedError):
                 raise
-            except STTError:
+            except SpeechRevolutionsError:
                 pass
 
             try:
@@ -714,7 +714,6 @@ class AsyncSpeechRevolutions:
         await self.aclose()
 
 
-AsyncSTTClient = AsyncSpeechRevolutions
 AsyncSpeechRevolutionsClient = AsyncSpeechRevolutions
 
 
