@@ -258,11 +258,17 @@ def parse_transcript(
 
     words = [_parse_word(w) for w in raw.get("words", []) if isinstance(w, dict)]
     diarization = raw.get("diarization") or []
-    utterances = (
-        _utterances_from_diarization(words, diarization)
-        if diarization
-        else _utterances_from_words(words)
-    )
+    # Speaker turns come from the words whenever they carry speakers: every word lands in
+    # exactly one utterance, and consecutive words from one speaker are one turn. Built from
+    # the diarization segments instead, words that fell between segments were silently dropped
+    # and every pause split a turn in two. Segments are only the fallback, for words without
+    # speaker labels.
+    if words and all(w.speaker is not None for w in words):
+        utterances = _utterances_from_words(words)
+    elif diarization:
+        utterances = _utterances_from_diarization(words, diarization)
+    else:
+        utterances = _utterances_from_words(words)
     languages = [_parse_language_segment(s) for s in raw.get("languages", []) if isinstance(s, dict)]
     text = _join_words(words)
 
@@ -332,7 +338,12 @@ def _utterances_from_diarization(
 ) -> list[Utterance]:
     """Prefer server-provided diarization segments when present."""
     utterances: list[Utterance] = []
-    for seg in diarization:
+    # Time order: the service has returned segments grouped by speaker.
+    ordered = sorted(
+        (s for s in diarization if isinstance(s, dict)),
+        key=lambda s: _as_float(s.get("start")) or 0.0,
+    )
+    for seg in ordered:
         if not isinstance(seg, dict):
             continue
         start = _as_float(seg.get("start"))

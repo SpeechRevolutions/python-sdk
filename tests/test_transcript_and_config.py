@@ -205,3 +205,27 @@ def test_clients_pick_up_the_env_base_url(monkeypatch):
     monkeypatch.setenv("SPEECHREVOLUTIONS_API_KEY", "k")
     assert SpeechRevolutions().base_url == "https://staging.example"
     assert AsyncSpeechRevolutions().base_url == "https://staging.example"
+
+
+def test_utterances_are_whole_turns_in_time_order_and_keep_every_word():
+    """The service's diarization list has come back grouped by speaker, split at pauses, and
+    not covering every word. Utterances must still be one per turn, in order, losing nothing."""
+    words = [
+        {"word": "Why,", "start": 0.4, "end": 0.7, "speaker": "SPEAKER_1"},
+        {"word": "my", "start": 0.8, "end": 0.9, "speaker": "SPEAKER_1"},
+        {"word": "dear?", "start": 3.5, "end": 3.9, "speaker": "SPEAKER_1"},
+        {"word": "She", "start": 5.0, "end": 5.2, "speaker": "SPEAKER_2"},
+        {"word": "sighed.", "start": 5.3, "end": 5.8, "speaker": "SPEAKER_2"},
+        {"word": "Well.", "start": 6.5, "end": 6.9, "speaker": "SPEAKER_1"},
+    ]
+    diarization = [  # grouped by speaker, pause-split, and "dear?" in no segment
+        {"start": 0.4, "end": 0.9, "speaker": "SPEAKER_1"},
+        {"start": 6.5, "end": 6.9, "speaker": "SPEAKER_1"},
+        {"start": 5.0, "end": 5.8, "speaker": "SPEAKER_2"},
+    ]
+    t = _parse({"words": words, "diarization": diarization})
+    assert [(u.speaker, u.text) for u in t.utterances] == [
+        ("SPEAKER_1", "Why, my dear?"),
+        ("SPEAKER_2", "She sighed."),
+        ("SPEAKER_1", "Well."),
+    ]
