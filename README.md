@@ -1,6 +1,6 @@
 # Speech Revolutions — Python SDK
 
-Official Python client for the [Speech Revolutions](https://speechrevolutions.com) speech-to-text API.
+Official Python client for the [Speech Revolutions](https://www.speechrevolutions.com) speech-to-text API.
 
 ## Install
 
