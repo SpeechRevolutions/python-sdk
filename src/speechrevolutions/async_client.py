@@ -105,6 +105,7 @@ class AsyncSpeechRevolutions:
         nltk: bool | None = None,
         tier: ProcessingTier | str | None = None,
         custom_vocabulary: list[str] | None = None,
+        language: str | None = None,
         callback_url: str | None = None,
         on_progress: ProgressCallback | None = None,
         on_upload_progress: ProgressCallback | None = None,
@@ -114,6 +115,10 @@ class AsyncSpeechRevolutions:
         Transcribe a local file path, remote URL, bytes, or file object.
 
         ``diarize`` is a Deepgram-compatible alias for ``speaker_labels``.
+        ``language`` pins an ISO 639-1 code (e.g. ``"en"``) and skips language
+        detection; ``None`` (default) or ``"auto"`` detects it. Pinning the
+        wrong language makes the model translate into it, and an unsupported
+        code is rejected with HTTP 422.
         Pass ``on_progress`` / ``on_upload_progress`` to receive
         :class:`ProgressEvent`s (read ``event.percent``) for the transcription
         and upload phases, and/or ``progress=True`` to render ``tqdm`` bars to
@@ -129,6 +134,7 @@ class AsyncSpeechRevolutions:
             nltk=nltk,
             tier=tier,
             custom_vocabulary=custom_vocabulary,
+            language=language,
             callback_url=callback_url,
         )
         job_id, job_download_url = await self._ingest_audio(
@@ -170,6 +176,7 @@ class AsyncSpeechRevolutions:
         nltk: bool | None = None,
         tier: ProcessingTier | str | None = None,
         custom_vocabulary: list[str] | None = None,
+        language: str | None = None,
         callback_url: str | None = None,
         on_upload_progress: ProgressCallback | None = None,
         progress: bool = False,
@@ -179,6 +186,7 @@ class AsyncSpeechRevolutions:
         Collect the result later via a webhook (``callback_url``) or by polling
         :meth:`get_job_status` / :meth:`get_transcript`. Ideal for batch
         workloads — submit many files concurrently, then gather.
+        Options (including ``language``) are as for :meth:`transcribe`.
         """
         opts = resolve_options(
             options,
@@ -189,6 +197,7 @@ class AsyncSpeechRevolutions:
             nltk=nltk,
             tier=tier,
             custom_vocabulary=custom_vocabulary,
+            language=language,
             callback_url=callback_url,
         )
         job_id, _ = await self._ingest_audio(

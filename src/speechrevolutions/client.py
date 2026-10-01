@@ -120,6 +120,7 @@ class SpeechRevolutions:
         nltk: bool | None = None,
         tier: ProcessingTier | str | None = None,
         custom_vocabulary: list[str] | None = None,
+        language: str | None = None,
         callback_url: str | None = None,
         on_progress: ProgressCallback | None = None,
         on_upload_progress: ProgressCallback | None = None,
@@ -131,7 +132,10 @@ class SpeechRevolutions:
         Options may be passed via ``options=TranscribeOptions(...)`` and/or
         keyword arguments (kwargs win). ``diarize`` is a Deepgram-compatible
         alias for ``speaker_labels``. ``tier`` is ``standard`` (default) or
-        ``economy``.
+        ``economy``. ``language`` pins an ISO 639-1 code (e.g. ``"en"``) and
+        skips language detection; ``None`` (default) or ``"auto"`` detects it.
+        Pinning the wrong language makes the model translate into it, and an
+        unsupported code is rejected with HTTP 422.
 
         Live progress is a Speech Revolutions extra — neither AssemblyAI nor
         Deepgram exposes it for pre-recorded audio. ``on_progress`` fires with
@@ -153,6 +157,7 @@ class SpeechRevolutions:
             nltk=nltk,
             tier=tier,
             custom_vocabulary=custom_vocabulary,
+            language=language,
             callback_url=callback_url,
         )
         job_id, download_url = self._ingest_audio(
@@ -196,6 +201,7 @@ class SpeechRevolutions:
         nltk: bool | None = None,
         tier: ProcessingTier | str | None = None,
         custom_vocabulary: list[str] | None = None,
+        language: str | None = None,
         callback_url: str | None = None,
         on_upload_progress: ProgressCallback | None = None,
         progress: bool = False,
@@ -207,6 +213,7 @@ class SpeechRevolutions:
         via a webhook (``callback_url``) or by polling :meth:`get_job_status` /
         :meth:`get_transcript`. Ideal for batch workloads — submit many files,
         then gather — since it holds no long-lived connection per job.
+        Options (including ``language``) are as for :meth:`transcribe`.
         """
         opts = resolve_options(
             options,
@@ -217,6 +224,7 @@ class SpeechRevolutions:
             nltk=nltk,
             tier=tier,
             custom_vocabulary=custom_vocabulary,
+            language=language,
             callback_url=callback_url,
         )
         job_id, _ = self._ingest_audio(

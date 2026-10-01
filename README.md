@@ -57,7 +57,12 @@ result = client.transcribe("a.mp3", options=TranscribeOptions(speaker_labels=Tru
 ```
 
 Defaults: `output_type="json"`, `word_timestamps`, `speaker_labels`, `nltk` all
-`True`, `tier="standard"`, `custom_vocabulary=None`.
+`True`, `tier="standard"`, `custom_vocabulary=None`, `language=None`.
+
+`language` pins an ISO 639-1 code (e.g. `language="ru"`) and skips language
+detection; `None` (or `"auto"`) detects it automatically. Pinning the wrong
+language makes the model translate into it (Russian audio pinned to `"en"`
+comes back as English), and an unsupported code is rejected with HTTP 422.
 
 ### Live progress
 

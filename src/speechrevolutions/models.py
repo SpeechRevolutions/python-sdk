@@ -48,6 +48,10 @@ class TranscribeOptions:
     nltk: bool = True
     tier: ProcessingTier | str = ProcessingTier.standard
     custom_vocabulary: list[str] | None = None
+    # ISO 639-1 code (e.g. "en", "ru") to transcribe in, skipping language
+    # detection. None (or "auto") = detect automatically. Pinning the wrong
+    # language makes the model translate into it.
+    language: str | None = None
     callback_url: str | None = None
 
     def normalized_output_type(self) -> str:
@@ -76,6 +80,8 @@ class TranscribeOptions:
             payload["audio_url"] = audio_url
         if self.custom_vocabulary:
             payload["custom_vocabulary"] = self.custom_vocabulary
+        if self.language is not None:
+            payload["language"] = self.language
         if self.callback_url:
             payload["callback_url"] = self.callback_url
         return payload
@@ -91,6 +97,7 @@ def resolve_options(
     nltk: bool | None = None,
     tier: ProcessingTier | str | None = None,
     custom_vocabulary: list[str] | None = None,
+    language: str | None = None,
     callback_url: str | None = None,
 ) -> TranscribeOptions:
     """Merge an options object with kwargs (kwargs win). ``diarize`` aliases ``speaker_labels``."""
@@ -110,6 +117,7 @@ def resolve_options(
         custom_vocabulary=(
             custom_vocabulary if custom_vocabulary is not None else base.custom_vocabulary
         ),
+        language=language if language is not None else base.language,
         callback_url=callback_url if callback_url is not None else base.callback_url,
     )
 

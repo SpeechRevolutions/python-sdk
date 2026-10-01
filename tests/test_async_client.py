@@ -71,6 +71,24 @@ async def test_options_reach_the_server(api):
     assert opts["custom_vocabulary"] == ["Kubernetes"]
 
 
+async def test_language_is_sent_when_set(api):
+    async with AsyncSpeechRevolutions(api_key="test-key", base_url=api.base_url) as c:
+        await c.transcribe(b"x" * 64, language="ru")
+    assert api.only_job().options["language"] == "ru"
+
+
+async def test_language_is_omitted_when_not_set(api):
+    async with AsyncSpeechRevolutions(api_key="test-key", base_url=api.base_url) as c:
+        await c.submit(b"x" * 64)
+    assert "language" not in api.only_job().options
+
+
+async def test_language_reaches_the_url_path(api):
+    async with AsyncSpeechRevolutions(api_key="test-key", base_url=api.base_url) as c:
+        await c.submit("https://example.com/b.mp3", language="en")
+    assert api.only_job().options["language"] == "en"
+
+
 # ---------------------------------------------------------------------------
 # Progress and polling
 # ---------------------------------------------------------------------------

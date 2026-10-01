@@ -21,6 +21,7 @@ async def main() -> None:
             nltk=True,                     # restore punctuation & capitalization
             tier="standard",               # processing tier: standard | economy
             custom_vocabulary=None,        # list[str] of domain terms to bias toward, or None
+            language=None,                 # ISO 639-1 code (e.g. "en") to skip detection, or None = auto
             on_progress=None,              # callback(ProgressEvent) for transcription %, or None
             on_upload_progress=None,       # callback(ProgressEvent) for upload %, or None
             progress=True,                 # render live upload + transcription bars in the console

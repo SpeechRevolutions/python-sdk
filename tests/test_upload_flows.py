@@ -142,6 +142,35 @@ def test_options_are_sent_on_the_create_call(api, client):
     assert opts["custom_vocabulary"] == ["Kubernetes", "Postgres"]
 
 
+def test_language_is_sent_when_set(api, client):
+    client.transcribe(b"x" * 64, language="ru")
+    assert api.only_job().options["language"] == "ru"
+
+
+def test_language_is_omitted_when_not_set(api, client):
+    # Older servers must see an identical request.
+    client.transcribe(b"x" * 64)
+    assert "language" not in api.only_job().options
+
+
+def test_language_reaches_the_single_shot_fallback(api, client):
+    api.multipart_enabled = False
+    client.transcribe(b"x" * 64, language="en")
+    assert api.count("POST", "/api/v1/upload") == 1
+    assert api.only_job().options["language"] == "en"
+
+
+def test_language_reaches_the_url_path_and_submit(api, client):
+    client.submit("https://example.com/b.mp3", language="fr")
+    assert api.only_job().options["language"] == "fr"
+
+
+def test_language_from_options_object(api, client):
+    from speechrevolutions import TranscribeOptions
+    client.transcribe(b"x" * 64, options=TranscribeOptions(language="de"))
+    assert api.only_job().options["language"] == "de"
+
+
 def test_diarize_is_an_alias_for_speaker_labels(api, client):
     client.transcribe(b"x" * 64, diarize=True)
     assert api.only_job().options["speaker_labels"] is True
