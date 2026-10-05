@@ -193,3 +193,21 @@ def test_srt_save_writes_subtitle_text(tmp_path):
     p = tmp_path / "subs.srt"
     r.save(str(p))
     assert "00:00:00,000 --> 00:00:01,440" in p.read_text()
+
+
+def test_to_deepgram_numbers_service_speakers_from_zero():
+    # The service labels speakers SPEAKER_1, SPEAKER_2...; Deepgram counts from 0.
+    from speechrevolutions.transcript import parse_transcript
+
+    payload = {
+        "words": [
+            {"word": "Hi.", "start": 0.0, "end": 0.5, "speaker": "SPEAKER_1"},
+            {"word": "Yo.", "start": 0.6, "end": 1.0, "speaker": "SPEAKER_2"},
+            {"word": "Hm.", "start": 1.1, "end": 1.4, "speaker": "narrator"},
+        ]
+    }
+    t = parse_transcript(job_id="j", content=json.dumps(payload).encode(), output_type="json")
+    dg = t.to_deepgram()
+    assert [w["speaker"] for w in dg["results"]["channels"][0]["alternatives"][0]["words"]] == [0, 1, "narrator"]
+    # An unrecognised label passes through unchanged.
+    assert [u["speaker"] for u in dg["results"]["utterances"]] == [0, 1, "narrator"]

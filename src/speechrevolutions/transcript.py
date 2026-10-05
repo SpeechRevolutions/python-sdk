@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -149,6 +150,8 @@ class Transcript:
     def to_deepgram(self) -> dict[str, Any]:
         """
         Rough Deepgram pre-recorded response shape for easier migrations.
+
+        Speakers are numbered from 0, as Deepgram numbers them (SPEAKER_1 -> 0).
 
         Access path mirrors Deepgram::
 
@@ -414,15 +417,23 @@ def _as_float(value: Any) -> float | None:
 
 
 def _speaker_index(speaker: str | None) -> int | str | None:
-    """Map SPEAKER_0 / A → integer when possible (Deepgram-style)."""
+    """Deepgram's speaker number for one of our labels.
+
+    Deepgram counts from 0; the service labels speakers SPEAKER_1, SPEAKER_2, ...
+    so SPEAKER_n is n - 1 (and A, B, ... are 0, 1, ...). A label that is none of
+    these passes through unchanged.
+    """
     if speaker is None:
         return None
     s = str(speaker)
-    if s.upper().startswith("SPEAKER_"):
-        try:
-            return int(s.split("_", 1)[1])
-        except ValueError:
-            return s
+    m = re.fullmatch(r"SPEAKER_(\d+)", s, flags=re.IGNORECASE)
+    if m:
+        return max(0, int(m.group(1)) - 1)
+    if len(s) == 1 and s.isascii() and s.isalpha():
+        return ord(s.upper()) - ord("A")
+    if s.isdigit():
+        return int(s)
+    return s
     if len(s) == 1 and s.isalpha():
         return ord(s.upper()) - ord("A")
     try:

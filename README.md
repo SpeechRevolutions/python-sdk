@@ -24,36 +24,43 @@ result = client.transcribe("meeting.mp3", speaker_labels=True)
 print(result.text)
 
 for u in result.utterances:
-    print(f"Speaker {u.speaker}: {u.text}")
+    print(f"{u.speaker}: {u.text}")  # e.g. "SPEAKER_1: Hello."
 ```
 
 ### Async
 
 ```python
+import asyncio
+
 from speechrevolutions import AsyncSpeechRevolutions
 
-async with AsyncSpeechRevolutions() as client:
-    result = await client.transcribe("meeting.mp3", speaker_labels=True)
-    print(result.text)
+
+async def main():
+    async with AsyncSpeechRevolutions() as client:
+        result = await client.transcribe("meeting.mp3", speaker_labels=True)
+        print(result.text)
+
+
+asyncio.run(main())
 ```
 
 ### From a URL (Deepgram-style)
 
 ```python
-result = client.transcribe_url("https://example.com/audio.mp3")
-# or
-result = client.transcribe("https://example.com/audio.mp3")
+result = client.transcribe_url("https://docs.speechrevolutions.com/samples/diamond-necklace.mp3")
+# or, since transcribe() detects http(s) URLs:
+# result = client.transcribe("https://docs.speechrevolutions.com/samples/diamond-necklace.mp3")
 ```
 
 ### Options as kwargs or config object
 
 ```python
 # kwargs (ElevenLabs / Deepgram style). `diarize` is an alias for `speaker_labels`.
-result = client.transcribe("a.mp3", diarize=True, output_type="json")
+result = client.transcribe("meeting.mp3", diarize=True, output_type="json")
 
 # config object (AssemblyAI style)
 from speechrevolutions import TranscribeOptions
-result = client.transcribe("a.mp3", options=TranscribeOptions(speaker_labels=True))
+result = client.transcribe("meeting.mp3", options=TranscribeOptions(speaker_labels=True))
 ```
 
 Defaults: `output_type="json"`, `word_timestamps`, `speaker_labels`, `nltk` all
@@ -90,7 +97,9 @@ result = client.transcribe(
 ```
 
 `progress=True` and the callbacks compose — the bars render *and* your callbacks
-still fire for every event.
+still fire for every event. When the job completes, `on_progress` always receives a
+final event at `100` (`event.step == "completed"`), even for a short file that
+finished before reporting any progress.
 
 ## Result shape
 
@@ -107,9 +116,23 @@ Default `output_type` is `json`. The SDK parses it into a transcript-first objec
 | `result.content` / `result.save()` | raw bytes / file |
 
 ```python
+from speechrevolutions import SpeechRevolutions
+
+client = SpeechRevolutions()
+result = client.transcribe("meeting.mp3")
+
+# Deepgram's response shape; speakers are numbered from 0.
 dg = result.to_deepgram()
 print(dg["results"]["channels"][0]["alternatives"][0]["transcript"])
+
+# Save raw content to disk. Appends the output type if the path has no
+# extension, e.g. "output" -> "output.json". Returns the written path.
+path = result.save("output")
+print(f"saved {path}")
 ```
+
+`to_deepgram()` numbers speakers from 0, as Deepgram does: `SPEAKER_1` becomes speaker `0`,
+`SPEAKER_2` speaker `1`. (Before 1.0.0 it kept our 1-based numbers.)
 
 ## Webhooks & retrieving results later
 
@@ -120,8 +143,8 @@ raw bytes) or by polling:
 
 ```python
 job_id = client.submit("meeting.mp3")       # returns immediately, no waiting
-# ...or notify a webhook instead of polling:
-client.transcribe("meeting.mp3", callback_url="https://you.example.com/hook")
+# ...or have a webhook notified instead of polling:
+client.submit("meeting.mp3", callback_url="https://you.example.com/hook")
 
 status = client.get_job_status(job_id)      # .status: processing|completed|failed
 if status.is_completed:

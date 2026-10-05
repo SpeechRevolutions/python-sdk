@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import re
 
 from speechrevolutions.exceptions import AuthenticationError
 
@@ -146,3 +148,29 @@ def _sdk_version() -> str:
 
 
 USER_AGENT = f"speechrevolutions-python/{_sdk_version()}"
+
+
+def unexpected_response_message(status_code: int, text: str) -> str:
+    """The message for a status with no dedicated exception, saying what the server said.
+
+    "Unexpected response (HTTP 403)" alone left a caller nothing to act on. The
+    edge firewall answers some refusals itself with a bare HTML 403 -- notably a
+    callback_url or audio_url that is not a public address -- so that case is
+    named outright; a JSON ``detail`` from the API is passed through.
+    """
+    try:
+        detail = json.loads(text).get("detail") if text else None
+    except (ValueError, AttributeError):
+        detail = None
+    if detail:
+        if not isinstance(detail, str):
+            detail = json.dumps(detail)[:300]
+        return f"HTTP {status_code}: {detail}"
+    if status_code == 403:
+        return (
+            "Forbidden (HTTP 403) by the API's edge firewall, before the request reached "
+            "the API. A callback_url or audio_url that is not a public internet address "
+            "(localhost, 127.0.0.1, a private network) is refused this way."
+        )
+    snippet = " ".join(re.sub(r"<[^>]+>", " ", text or "").split())[:200]
+    return f"Unexpected response (HTTP {status_code})" + (f": {snippet}" if snippet else "")

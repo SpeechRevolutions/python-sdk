@@ -166,3 +166,25 @@ def test_lost_response_creates_exactly_one_job():
         c.create_upload_job(1024)
     assert exc.value.status_code == 502
     assert s.attempts == 1, "a retry here would have created a duplicate job"
+
+
+# --------------------------------------------------------------------------
+# Error messages say what the server said
+# --------------------------------------------------------------------------
+
+def test_an_edge_403_explains_itself():
+    # The edge firewall answers a non-public callback_url with a bare HTML 403.
+    html = "<html><head><title>403 Forbidden</title></head><body>403 Forbidden</body></html>"
+    c, _ = client([FakeResponse(403, text=html)])
+    with pytest.raises(APIError) as exc:
+        c.cancel_job("j1")
+    assert exc.value.status_code == 403
+    assert "callback_url" in str(exc.value)
+    assert exc.value.body.startswith("<html>")
+
+
+def test_a_json_detail_is_passed_through():
+    c, _ = client([FakeResponse(402, {"detail": "Insufficient balance"}, text='{"detail": "Insufficient balance"}')])
+    with pytest.raises(APIError) as exc:
+        c.cancel_job("j1")
+    assert "Insufficient balance" in str(exc.value)

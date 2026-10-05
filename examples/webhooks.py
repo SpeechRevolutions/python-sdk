@@ -23,11 +23,10 @@ from speechrevolutions import SpeechRevolutions
 
 
 # --- 1. Submit a job with a webhook -----------------------------------------
-def submit(audio: str, callback_url: str) -> None:
+def submit(audio: str, callback_url: str) -> str:
     client = SpeechRevolutions()  # reads SPEECHREVOLUTIONS_API_KEY
-    # transcribe() still waits for the result here; if you only want the webhook,
-    # use the lower-level create/upload/complete calls and return immediately.
-    client.transcribe(audio, callback_url=callback_url)
+    # submit() uploads and enqueues the job, then returns its id without waiting.
+    return client.submit(audio, callback_url=callback_url)
 
 
 # --- 2. Verify an incoming webhook (framework-agnostic) ---------------------
@@ -45,7 +44,8 @@ def verify_signature(raw_body: bytes, signature_header: str, signing_secret: str
 # import os, json
 # from fastapi import FastAPI, Request, HTTPException
 # app = FastAPI()
-# SECRET = os.environ["SR_WEBHOOK_SECRET"]  # the same secret configured server-side
+# # Your account's webhook signing secret: console.speechrevolutions.com -> API Keys.
+# SECRET = os.environ["SPEECHREVOLUTIONS_WEBHOOK_SECRET"]
 #
 # @app.post("/webhooks/speechrevolutions")
 # async def receive(request: Request):
@@ -62,5 +62,5 @@ def verify_signature(raw_body: bytes, signature_header: str, signing_secret: str
 
 if __name__ == "__main__":
     # Point this at a URL you control (e.g. an ngrok tunnel to the receiver above).
-    submit("audio.mp3", callback_url="https://your-app.example.com/webhooks/speechrevolutions")
-    print("Submitted. Your callback_url will be POSTed when the job finishes.")
+    job_id = submit("audio.mp3", callback_url="https://your-app.example.com/webhooks/speechrevolutions")
+    print(f"Submitted {job_id}. Your callback_url will be POSTed when the job finishes.")

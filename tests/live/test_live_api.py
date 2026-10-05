@@ -168,8 +168,10 @@ def test_transcribe_a_real_file(client, audio):
     # 600s — so a file under ~10 minutes is a single chunk and can finish with
     # ZERO progress events. Verified live: a 12.8s job emitted only `completed`,
     # while a 68-minute job emitted 9 (preprocess, chunk:0..6, aggregation).
-    # Requiring events for any file would be wrong; see the multi-chunk test.
+    # Requiring intermediate events would be wrong; see the multi-chunk test.
+    # What every finished job does report is a final 100%.
     assert all(e.total and e.completed <= e.total for e in events)
+    assert events and events[-1].percent == 100.0, "no final 100% progress event"
     print(f"\n  transcript: {result.text[:120]}")
     print(f"  words: {len(result.words)}  utterances: {len(result.utterances)}")
     print(f"  progress events: {len(events)}")
@@ -522,6 +524,11 @@ def test_transcript_transforms_on_a_real_response(client, audio):
 
     dg = result.to_deepgram()
     assert "results" in dg, f"to_deepgram has no results key: {list(dg)}"
+    # Deepgram numbers speakers from 0; ours start at SPEAKER_1.
+    speakers = [w["speaker"] for w in dg["results"]["channels"][0]["alternatives"][0]["words"]
+                if "speaker" in w]
+    if speakers:
+        assert min(speakers) == 0
 
     blob = result.to_json()
     assert json.loads(blob)["text"] == result.text

@@ -29,10 +29,12 @@ from speechrevolutions._config import (
     UPLOAD_PROGRESS_INTERVAL,
     creates_job as _creates_job,
     extract_request_id,
+    unexpected_response_message,
     parse_retry_after,
     resolve_api_key,
     resolve_base_url,
 )
+from speechrevolutions._progress import CompletionTracker as _CompletionTracker
 from speechrevolutions._progress import resolve_progress as _resolve_progress
 from speechrevolutions._upload import ProgressReader
 from speechrevolutions._upload import byte_progress_adapter as _byte_progress_adapter
@@ -131,8 +133,8 @@ class SpeechRevolutions:
 
         Options may be passed via ``options=TranscribeOptions(...)`` and/or
         keyword arguments (kwargs win). ``diarize`` is a Deepgram-compatible
-        alias for ``speaker_labels``. ``tier`` is ``standard`` (default) or
-        ``economy``. ``language`` pins an ISO 639-1 code (e.g. ``"en"``) and
+        alias for ``speaker_labels``. ``tier`` is ``standard`` (the default, and
+        the only tier currently available). ``language`` pins an ISO 639-1 code (e.g. ``"en"``) and
         skips language detection; ``None`` (default) or ``"auto"`` detects it.
         Pinning the wrong language makes the model translate into it, and an
         unsupported code is rejected with HTTP 422.
@@ -421,10 +423,16 @@ class SpeechRevolutions:
         timeout: float | None = None,
     ) -> tuple[bytes, str]:
         timeout = self.timeout if timeout is None else timeout
-        result_url = self._wait_sse(job_id, download_url, on_progress=on_progress, timeout=timeout)
+        tracker = _CompletionTracker(on_progress)
+        result_url = self._wait_sse(
+            job_id, download_url, on_progress=tracker.callback, timeout=timeout
+        )
         if result_url is None:
-            return self._wait_poll(job_id, download_url, timeout=timeout), download_url
-        return self.download_result(result_url), result_url
+            result = self._wait_poll(job_id, download_url, timeout=timeout), download_url
+        else:
+            result = self.download_result(result_url), result_url
+        tracker.finish()
+        return result
 
     def download_result(self, download_url: str) -> bytes:
         try:
@@ -585,7 +593,7 @@ class SpeechRevolutions:
                 retry_after=parse_retry_after(resp.headers.get("Retry-After")),
             )
         raise APIError(
-            f"Unexpected response (HTTP {resp.status_code})",
+            unexpected_response_message(resp.status_code, resp.text),
             status_code=resp.status_code,
             request_id=request_id,
             body=resp.text[:300],

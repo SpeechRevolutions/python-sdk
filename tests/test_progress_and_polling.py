@@ -151,3 +151,32 @@ def test_failure_over_sse_reports_step_and_reason(api, client):
         client.transcribe(b"x" * 64)
     msg = str(exc.value)
     assert "gpu_segmentation" in msg and "simulated failure" in msg
+
+
+# ---------------------------------------------------------------------------
+# Completion always reports 100%
+# ---------------------------------------------------------------------------
+
+def test_a_job_with_no_progress_events_still_reports_100():
+    # A short file can finish before the stream reports anything.
+    with MockAPI(progress_steps=0) as api:
+        with SpeechRevolutions(api_key="test-key", base_url=api.base_url) as c:
+            events = []
+            c.transcribe(b"x" * 64, on_progress=events.append)
+    assert [(e.percent, e.step) for e in events] == [(100.0, "completed")]
+
+
+def test_no_extra_event_when_the_stream_reached_100(api, client):
+    events = []
+    client.transcribe(b"x" * 64, on_progress=events.append)
+    assert [round(e.percent) for e in events] == [33, 67, 100]
+
+
+async def test_async_job_with_no_progress_events_still_reports_100():
+    from speechrevolutions import AsyncSpeechRevolutions
+
+    with MockAPI(progress_steps=0) as api:
+        async with AsyncSpeechRevolutions(api_key="test-key", base_url=api.base_url) as c:
+            events = []
+            await c.transcribe(b"x" * 64, on_progress=events.append)
+    assert [(e.percent, e.step) for e in events] == [(100.0, "completed")]

@@ -146,3 +146,40 @@ def resolve_progress(
         return on_progress, None
     printer = ProgressPrinter(forward=on_progress, label=label, bytes_mode=bytes_mode)
     return printer, printer
+
+
+class CompletionTracker:
+    """Closes a job's progress out at 100% once it has completed.
+
+    A short file can finish before the stream reports anything, and a stream
+    can end on 90%: either way the caller's UI was left short of done. Wrap the
+    callback with ``callback``, then call ``finish()`` once the result is in.
+    """
+
+    def __init__(self, on_progress: ProgressCallback | None) -> None:
+        self._forward = on_progress
+        self._start = time.monotonic()
+        self._last: ProgressEvent | None = None
+        self.callback: ProgressCallback | None = self._track if on_progress else None
+
+    def _track(self, event: ProgressEvent) -> None:
+        self._last = event
+        assert self._forward is not None
+        self._forward(event)
+
+    def finish(self) -> None:
+        if self._forward is None:
+            return
+        last = self._last
+        if last is not None and last.percent == 100.0:
+            return
+        total = (last.total if last is not None else None) or 1
+        self._forward(
+            ProgressEvent(
+                completed=total,
+                total=total,
+                step="completed",
+                elapsed_seconds=time.monotonic() - self._start,
+                raw={"completed": total, "total": total, "step": "completed"},
+            )
+        )

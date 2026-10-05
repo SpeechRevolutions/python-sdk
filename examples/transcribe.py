@@ -17,7 +17,7 @@ def main() -> None:
         word_timestamps=True,          # include per-word start/end times
         speaker_labels=True,           # label who spoke each segment (alias: diarize=)
         nltk=True,                     # restore punctuation & capitalization
-        tier="standard",               # processing tier: standard | economy
+        tier="standard",               # processing tier: "standard", the only tier currently available
         custom_vocabulary=None,        # list[str] of domain terms to bias toward, or None
         language=None,                 # ISO 639-1 code (e.g. "en") to skip detection, or None = auto
         on_progress=None,              # callback(ProgressEvent) for transcription %, or None
