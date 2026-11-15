@@ -131,6 +131,7 @@ class SpeechRevolutions:
         entity_detection: Any = None,
         filter_profanity: Any = None,
         paragraphs: Any = None,
+        speaker_names: Any = None,
         verbatim: Any = None,
         on_progress: ProgressCallback | None = None,
         on_upload_progress: ProgressCallback | None = None,
@@ -176,6 +177,7 @@ class SpeechRevolutions:
             entity_detection=entity_detection,
             filter_profanity=filter_profanity,
             paragraphs=paragraphs,
+            speaker_names=speaker_names,
             verbatim=verbatim,
         )
         job_id, download_url = self._ingest_audio(
@@ -228,6 +230,7 @@ class SpeechRevolutions:
         entity_detection: Any = None,
         filter_profanity: Any = None,
         paragraphs: Any = None,
+        speaker_names: Any = None,
         verbatim: Any = None,
         on_upload_progress: ProgressCallback | None = None,
         progress: bool = False,
@@ -259,6 +262,7 @@ class SpeechRevolutions:
             entity_detection=entity_detection,
             filter_profanity=filter_profanity,
             paragraphs=paragraphs,
+            speaker_names=speaker_names,
             verbatim=verbatim,
         )
         job_id, _ = self._ingest_audio(

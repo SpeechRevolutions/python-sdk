@@ -67,6 +67,8 @@ class TranscribeOptions:
     filter_profanity: bool = False
     #: json output gains `paragraphs` [{start, end, speaker, text, sentences}].
     paragraphs: bool = False
+    #: json output gains `speaker_names` {"SPEAKER_1": "Alice"} when the conversation establishes who is who.
+    speaker_names: bool = False
     #: Keep fillers and false starts (verbatim) instead of the default style.
     verbatim: bool | None = None
 
@@ -102,7 +104,7 @@ class TranscribeOptions:
             payload["callback_url"] = self.callback_url
         if self.end_user_id:
             payload["end_user_id"] = self.end_user_id
-        for flag in ("redact_pii", "entity_detection", "filter_profanity", "paragraphs"):
+        for flag in ("redact_pii", "entity_detection", "filter_profanity", "paragraphs", "speaker_names"):
             if getattr(self, flag):
                 payload[flag] = True
         if self.redact_pii and self.redact_pii_policies:
@@ -133,6 +135,7 @@ def resolve_options(
     entity_detection: Any = None,
     filter_profanity: Any = None,
     paragraphs: Any = None,
+    speaker_names: Any = None,
     verbatim: Any = None,
 ) -> TranscribeOptions:
     """Merge an options object with kwargs (kwargs win). ``diarize`` aliases ``speaker_labels``."""
@@ -161,6 +164,7 @@ def resolve_options(
         entity_detection=entity_detection if entity_detection is not None else base.entity_detection,
         filter_profanity=filter_profanity if filter_profanity is not None else base.filter_profanity,
         paragraphs=paragraphs if paragraphs is not None else base.paragraphs,
+        speaker_names=speaker_names if speaker_names is not None else base.speaker_names,
         verbatim=verbatim if verbatim is not None else base.verbatim,
     )
 
