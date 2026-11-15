@@ -53,6 +53,22 @@ class TranscribeOptions:
     # language makes the model translate into it.
     language: str | None = None
     callback_url: str | None = None
+    #: The caller's own id for the person the audio belongs to; accounts with automatic vocabulary get that
+    #: person's learned terms added to custom_vocabulary.
+    end_user_id: str | None = None
+    #: Replace PII in the transcript (timings kept): email_address, phone_number, credit_card_number,
+    #: us_social_security_number, ip_address (default: all). redact_pii_sub: "entity_name" or "hash".
+    redact_pii: bool = False
+    redact_pii_policies: list[str] | None = None
+    redact_pii_sub: str | None = None
+    #: json output gains `entities` [{entity_type, text, start, end}].
+    entity_detection: bool = False
+    #: Mask profanity ("f***").
+    filter_profanity: bool = False
+    #: json output gains `paragraphs` [{start, end, speaker, text, sentences}].
+    paragraphs: bool = False
+    #: Keep fillers and false starts (verbatim) instead of the default style.
+    verbatim: bool | None = None
 
     def normalized_output_type(self) -> str:
         if isinstance(self.output_type, OutputType):
@@ -84,6 +100,17 @@ class TranscribeOptions:
             payload["language"] = self.language
         if self.callback_url:
             payload["callback_url"] = self.callback_url
+        if self.end_user_id:
+            payload["end_user_id"] = self.end_user_id
+        for flag in ("redact_pii", "entity_detection", "filter_profanity", "paragraphs"):
+            if getattr(self, flag):
+                payload[flag] = True
+        if self.redact_pii and self.redact_pii_policies:
+            payload["redact_pii_policies"] = list(self.redact_pii_policies)
+        if self.redact_pii and self.redact_pii_sub:
+            payload["redact_pii_sub"] = self.redact_pii_sub
+        if self.verbatim is not None:
+            payload["verbatim"] = self.verbatim
         return payload
 
 
@@ -99,6 +126,14 @@ def resolve_options(
     custom_vocabulary: list[str] | None = None,
     language: str | None = None,
     callback_url: str | None = None,
+    end_user_id: Any = None,
+    redact_pii: Any = None,
+    redact_pii_policies: Any = None,
+    redact_pii_sub: Any = None,
+    entity_detection: Any = None,
+    filter_profanity: Any = None,
+    paragraphs: Any = None,
+    verbatim: Any = None,
 ) -> TranscribeOptions:
     """Merge an options object with kwargs (kwargs win). ``diarize`` aliases ``speaker_labels``."""
     base = options or TranscribeOptions()
@@ -119,6 +154,14 @@ def resolve_options(
         ),
         language=language if language is not None else base.language,
         callback_url=callback_url if callback_url is not None else base.callback_url,
+        end_user_id=end_user_id if end_user_id is not None else base.end_user_id,
+        redact_pii=redact_pii if redact_pii is not None else base.redact_pii,
+        redact_pii_policies=redact_pii_policies if redact_pii_policies is not None else base.redact_pii_policies,
+        redact_pii_sub=redact_pii_sub if redact_pii_sub is not None else base.redact_pii_sub,
+        entity_detection=entity_detection if entity_detection is not None else base.entity_detection,
+        filter_profanity=filter_profanity if filter_profanity is not None else base.filter_profanity,
+        paragraphs=paragraphs if paragraphs is not None else base.paragraphs,
+        verbatim=verbatim if verbatim is not None else base.verbatim,
     )
 
 

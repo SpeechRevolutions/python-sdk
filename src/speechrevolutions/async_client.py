@@ -109,6 +109,14 @@ class AsyncSpeechRevolutions:
         custom_vocabulary: list[str] | None = None,
         language: str | None = None,
         callback_url: str | None = None,
+        end_user_id: Any = None,
+        redact_pii: Any = None,
+        redact_pii_policies: Any = None,
+        redact_pii_sub: Any = None,
+        entity_detection: Any = None,
+        filter_profanity: Any = None,
+        paragraphs: Any = None,
+        verbatim: Any = None,
         on_progress: ProgressCallback | None = None,
         on_upload_progress: ProgressCallback | None = None,
         progress: bool = False,
@@ -138,6 +146,14 @@ class AsyncSpeechRevolutions:
             custom_vocabulary=custom_vocabulary,
             language=language,
             callback_url=callback_url,
+            end_user_id=end_user_id,
+            redact_pii=redact_pii,
+            redact_pii_policies=redact_pii_policies,
+            redact_pii_sub=redact_pii_sub,
+            entity_detection=entity_detection,
+            filter_profanity=filter_profanity,
+            paragraphs=paragraphs,
+            verbatim=verbatim,
         )
         job_id, job_download_url = await self._ingest_audio(
             audio, opts, on_upload_progress=on_upload_progress, progress=progress
@@ -180,6 +196,14 @@ class AsyncSpeechRevolutions:
         custom_vocabulary: list[str] | None = None,
         language: str | None = None,
         callback_url: str | None = None,
+        end_user_id: Any = None,
+        redact_pii: Any = None,
+        redact_pii_policies: Any = None,
+        redact_pii_sub: Any = None,
+        entity_detection: Any = None,
+        filter_profanity: Any = None,
+        paragraphs: Any = None,
+        verbatim: Any = None,
         on_upload_progress: ProgressCallback | None = None,
         progress: bool = False,
     ) -> str:
@@ -201,6 +225,14 @@ class AsyncSpeechRevolutions:
             custom_vocabulary=custom_vocabulary,
             language=language,
             callback_url=callback_url,
+            end_user_id=end_user_id,
+            redact_pii=redact_pii,
+            redact_pii_policies=redact_pii_policies,
+            redact_pii_sub=redact_pii_sub,
+            entity_detection=entity_detection,
+            filter_profanity=filter_profanity,
+            paragraphs=paragraphs,
+            verbatim=verbatim,
         )
         job_id, _ = await self._ingest_audio(
             audio, opts, on_upload_progress=on_upload_progress, progress=progress
@@ -317,6 +349,11 @@ class AsyncSpeechRevolutions:
     # ============================================================
     # RETRIEVAL (get by id / list)
     # ============================================================
+
+    async def delete_job(self, job_id: str) -> None:
+        """Delete a job's stored transcripts now (they are otherwise purged after 24 h). The usage record is
+        kept. Raises if the job is not found for this key."""
+        await self._api_request("DELETE", f"/api/v1/jobs/{job_id}")
 
     async def get_job_status(self, job_id: str) -> JobStatus:
         """Fetch a job's current status (and a fresh download URL once complete)."""
