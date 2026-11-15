@@ -95,6 +95,17 @@ class AsyncSpeechRevolutions:
     # HIGH-LEVEL
     # ============================================================
 
+    def stream(self, *, language: str | None = None, vocabulary: list[str] | None = None,
+               turn_threshold: float | None = None, max_silence_ms: int | None = None):
+        """A realtime transcription session (async context manager); see speechrevolutions.streaming.
+        language=None detects the language; needs `pip install speechrevolutions[streaming]`."""
+        from speechrevolutions.streaming import StreamSession
+
+        url = self.base_url.replace("https://", "wss://").replace("http://", "ws://") + "/api/v1/stream"
+        return StreamSession(url, self.api_key, language=language, vocabulary=vocabulary,
+                             turn_threshold=turn_threshold, max_silence_ms=max_silence_ms)
+
+
     async def transcribe(
         self,
         audio: str | Path | bytes | BinaryIO,
