@@ -64,13 +64,15 @@ class StreamSession:
     """A live transcription session. Use as `async with client.stream(...) as session:`."""
 
     def __init__(self, url: str, api_key: str, *, language: str | None, vocabulary: list[str] | None,
-                 turn_threshold: float | None, max_silence_ms: int | None):
+                 turn_threshold: float | None, max_silence_ms: int | None, end_user_id: str | None = None):
         self._url, self._key = url, api_key
         self._update: dict[str, Any] = {"type": "session.update"}
         if language and language != "auto":
             self._update["language"] = language
         if vocabulary:
             self._update["vocabulary"] = list(vocabulary)
+        if end_user_id:
+            self._update["end_user_id"] = end_user_id
         turn = {k: v for k, v in (("threshold", turn_threshold), ("max_silence_ms", max_silence_ms)) if v is not None}
         if turn:
             self._update["turn_detection"] = turn

@@ -96,14 +96,15 @@ class AsyncSpeechRevolutions:
     # ============================================================
 
     def stream(self, *, language: str | None = None, vocabulary: list[str] | None = None,
-               turn_threshold: float | None = None, max_silence_ms: int | None = None):
+               turn_threshold: float | None = None, max_silence_ms: int | None = None,
+               end_user_id: str | None = None):
         """A realtime transcription session (async context manager); see speechrevolutions.streaming.
         language=None detects the language; needs `pip install speechrevolutions[streaming]`."""
         from speechrevolutions.streaming import StreamSession
 
         url = self.base_url.replace("https://", "wss://").replace("http://", "ws://") + "/api/v1/stream"
         return StreamSession(url, self.api_key, language=language, vocabulary=vocabulary,
-                             turn_threshold=turn_threshold, max_silence_ms=max_silence_ms)
+                             turn_threshold=turn_threshold, max_silence_ms=max_silence_ms, end_user_id=end_user_id)
 
 
     async def transcribe(
