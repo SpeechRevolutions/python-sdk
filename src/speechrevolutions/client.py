@@ -135,6 +135,8 @@ class SpeechRevolutions:
         summarize: Any = None,
         auto_chapters: Any = None,
         verbatim: Any = None,
+        keep_repeats: Any = None,
+        conservative_vote: Any = None,
         on_progress: ProgressCallback | None = None,
         on_upload_progress: ProgressCallback | None = None,
         progress: bool = False,
@@ -183,6 +185,8 @@ class SpeechRevolutions:
             summarize=summarize,
             auto_chapters=auto_chapters,
             verbatim=verbatim,
+            keep_repeats=keep_repeats,
+            conservative_vote=conservative_vote,
         )
         job_id, download_url = self._ingest_audio(
             audio, opts, on_upload_progress=on_upload_progress, progress=progress
@@ -238,6 +242,8 @@ class SpeechRevolutions:
         summarize: Any = None,
         auto_chapters: Any = None,
         verbatim: Any = None,
+        keep_repeats: Any = None,
+        conservative_vote: Any = None,
         on_upload_progress: ProgressCallback | None = None,
         progress: bool = False,
     ) -> str:
@@ -272,6 +278,8 @@ class SpeechRevolutions:
             summarize=summarize,
             auto_chapters=auto_chapters,
             verbatim=verbatim,
+            keep_repeats=keep_repeats,
+            conservative_vote=conservative_vote,
         )
         job_id, _ = self._ingest_audio(
             audio, opts, on_upload_progress=on_upload_progress, progress=progress

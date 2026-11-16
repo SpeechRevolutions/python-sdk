@@ -20,3 +20,10 @@ def test_new_options_reach_payload():
 def test_policies_only_with_redaction():
     p = resolve_options(None, redact_pii_policies=["phone_number"]).to_payload(file_size=1)
     assert "redact_pii_policies" not in p
+
+
+def test_style_options_reach_payload_only_when_set():
+    assert "keep_repeats" not in TranscribeOptions().to_payload(file_size=1)
+    assert "conservative_vote" not in TranscribeOptions().to_payload(file_size=1)
+    p = resolve_options(None, verbatim=False, keep_repeats=True, conservative_vote=True).to_payload(file_size=1)
+    assert p["verbatim"] is False and p["keep_repeats"] is True and p["conservative_vote"] is True

@@ -75,6 +75,10 @@ class TranscribeOptions:
     auto_chapters: bool = False
     #: Keep fillers and false starts (verbatim) instead of the default style.
     verbatim: bool | None = None
+    #: Keep repeated words ("you know, you know") while still removing fillers; defaults to `verbatim`.
+    keep_repeats: bool | None = None
+    #: Favour the main model's reading of names when the models disagree (default off).
+    conservative_vote: bool | None = None
 
     def normalized_output_type(self) -> str:
         if isinstance(self.output_type, OutputType):
@@ -117,6 +121,10 @@ class TranscribeOptions:
             payload["redact_pii_sub"] = self.redact_pii_sub
         if self.verbatim is not None:
             payload["verbatim"] = self.verbatim
+        if self.keep_repeats is not None:
+            payload["keep_repeats"] = self.keep_repeats
+        if self.conservative_vote is not None:
+            payload["conservative_vote"] = self.conservative_vote
         return payload
 
 
@@ -143,6 +151,8 @@ def resolve_options(
     summarize: Any = None,
     auto_chapters: Any = None,
     verbatim: Any = None,
+    keep_repeats: Any = None,
+    conservative_vote: Any = None,
 ) -> TranscribeOptions:
     """Merge an options object with kwargs (kwargs win). ``diarize`` aliases ``speaker_labels``."""
     base = options or TranscribeOptions()
@@ -174,6 +184,8 @@ def resolve_options(
         summarize=summarize if summarize is not None else base.summarize,
         auto_chapters=auto_chapters if auto_chapters is not None else base.auto_chapters,
         verbatim=verbatim if verbatim is not None else base.verbatim,
+        keep_repeats=keep_repeats if keep_repeats is not None else base.keep_repeats,
+        conservative_vote=conservative_vote if conservative_vote is not None else base.conservative_vote,
     )
 
 
