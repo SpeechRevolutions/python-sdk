@@ -249,6 +249,10 @@ def test_sync_session_and_events():
 def test_send_audio_rejects_odd_length():
     from speechrevolutions.streaming import AsyncLiveSession
 
-    s = AsyncLiveSession(url="ws://x", api_key="k", session_update={})
+    async def run():
+        # Created inside the loop, as client.stream() does (Python 3.9's asyncio needs one).
+        s = AsyncLiveSession(url="ws://x", api_key="k", session_update={})
+        await s.send_audio(b"\x00\x01\x02")
+
     with pytest.raises(ValueError):
-        asyncio.run(s.send_audio(b"\x00\x01\x02"))
+        asyncio.run(run())
