@@ -1,0 +1,16 @@
+S|Thank you for calling Northwind Bank, my name is Rachel. Who am I speaking with today?
+D|Hi Rachel, this is Michael Thompson. I'm calling because there's a charge on my card I don't recognize, and honestly it's pissing me off.
+S|I'm sorry about that, Michael. Can you confirm your date of birth for me?
+D|Sure, it's March fourteenth, nineteen eighty six.
+S|Thank you. And the phone number on the account?
+D|It's four one five, five five five, two six seven one.
+S|And your email address?
+D|michael dot thompson at gmail dot com.
+S|Perfect. Can you read me the card number?
+D|Yes, it's four one one one, one one one one, one one one one, one one one one.
+S|Got it. For security, I also need the last four of your social security number, or the full number if you have it.
+D|The full one is one two three, four five, six seven eight nine.
+S|Thanks. I see a charge of four hundred and twelve dollars from Bright Electronics in Denver, Colorado, on November second.
+D|That's not mine. I've never been to Denver. Damn, what a mess.
+S|I'll cancel the card and send a new one to your address on file, eighteen Maple Street, Portland, Oregon.
+D|Great, thank you Rachel. You've been really helpful.

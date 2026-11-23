@@ -8,10 +8,11 @@ Official Python client for the [Speech Revolutions](https://www.speechrevolution
 pip install speechrevolutions
 ```
 
-For console progress bars, install the optional `tqdm` extra:
+Optional extras:
 
 ```bash
-pip install "speechrevolutions[progress]"
+pip install "speechrevolutions[streaming]"   # real-time streaming (websockets)
+pip install "speechrevolutions[progress]"    # console progress bars (tqdm)
 ```
 
 ## Quick start
@@ -63,8 +64,36 @@ from speechrevolutions import TranscribeOptions
 result = client.transcribe("meeting.mp3", options=TranscribeOptions(speaker_labels=True))
 ```
 
-Defaults: `output_type="json"`, `word_timestamps`, `speaker_labels`, `nltk` all
-`True`, `tier="standard"`, `custom_vocabulary=None`, `language=None`.
+Defaults: `output_type="json"`, `word_timestamps=True`, `nltk=True`, `speaker_labels=False`,
+`language=None` (detected), everything else off.
+
+### Options and add-ons
+
+Batch is $0.09 per audio hour. Add-ons are charged per audio hour only when a request turns them on:
+
+| Option | What it does | Price |
+|---|---|---|
+| `speaker_labels=True` (or `diarize=True`) | Speaker diarization: `word.speaker`, `result.utterances` | +$0.02/hr |
+| `custom_vocabulary=["Zephyr", "Acme"]` | Keyterms: given to the model and matched by sound | +$0.05/hr |
+| `summarize=True` | `result.summary.text` and `result.summary.bullets` | +$0.02/hr |
+| `filter_profanity=True` | Strong profanity masked (`s***`) in every format | +$0.01/hr |
+| `paragraphs=True` | `result.paragraphs`: speaker-aware, with sentences and times | free |
+| `verbatim=True/False` | Keep or drop fillers and false starts | free |
+| `language="en"` | Skip detection and transcribe in that language | free |
+| `extra={...}` | Any other API option, sent as given | — |
+
+```python
+result = client.transcribe(
+    "meeting.mp3",
+    speaker_labels=True,
+    summarize=True,
+    paragraphs=True,
+    custom_vocabulary=["Northwind"],
+)
+print(result.summary.text)
+for p in result.paragraphs:
+    print(f"[{p.start:.1f}s] {p.speaker}: {p.text}")
+```
 
 `language` pins an ISO 639-1 code (e.g. `language="ru"`) and skips language
 detection; `None` (or `"auto"`) detects it automatically. Pinning the wrong
@@ -133,6 +162,62 @@ print(f"saved {path}")
 
 `to_deepgram()` numbers speakers from 0, as Deepgram does: `SPEAKER_1` becomes speaker `0`,
 `SPEAKER_2` speaker `1`. (Before 1.0.0 it kept our 1-based numbers.)
+
+Delete a job's transcripts before the automatic purge with `client.delete_job(job_id)` (a
+running job is cancelled first).
+
+## Real-time streaming
+
+Real-time transcription over WebSocket, $0.15 per session hour (early access). Install the
+`streaming` extra. Audio is PCM16 mono 16 kHz; `load_pcm16(path)` converts any file with ffmpeg.
+
+```python
+from speechrevolutions import SpeechRevolutions
+
+client = SpeechRevolutions()
+session = client.stream(language="en")      # or languages=["en", "ja"], or nothing to detect it
+
+for chunk in microphone_chunks():           # your audio source: PCM16 mono 16 kHz bytes
+    session.send_audio(chunk)
+result = session.finish()                   # waits for transcription.done
+print(result.text)
+```
+
+Read events as they arrive by passing `on_event`, or by iterating the session from another thread:
+
+```python
+def on_event(e):
+    if e.type == "transcription.partial":   # the open utterance so far; replaces the last partial
+        print("\r" + e.text, end="")
+    elif e.type == "final":                  # an utterance, about a second after it ends
+        print(f"\n[{e.start:.2f}-{e.end:.2f}] {e.text}")
+
+session = client.stream(language="en", vocabulary=["Northwind"], on_event=on_event)
+```
+
+| Event | Fields |
+|---|---|
+| `session.created` | `job_id` (the billing id, and the handle for resuming) |
+| `transcription.partial` | `index`, `text`, `stable` (`text[:stable]` is settled), `audio_s` |
+| `final` | `index`, `text`, `start`, `end` |
+| `final.revised` | `index`, `text`: a better version of an earlier final |
+| `speech.started` / `turn.ended` | `audio_s` / `index`, `start`, `end`, `probability`, `forced` |
+| `language.detected` | `language`, `index` (when no language was given) |
+| `transcription.done` | `text`: all finals joined |
+| `error` | `code`, `message` |
+
+- **Turns:** `turn_detection={"threshold": 0.5, "max_silence_ms": 800}` tunes when a turn ends, and
+  `session.end_turn()` ends one now (push-to-talk).
+- **Dropped connections are handled for you:** the session keeps audio the server hasn't acknowledged,
+  reconnects with its job id for up to 60 s, and replays the rest. The transcript comes back complete
+  under the same `job_id`.
+- **Async:** `session = await client.stream(...)` on `AsyncSpeechRevolutions`, then
+  `await session.send_audio(...)`, `async for event in session`, `await session.finish()`.
+- **Testing with a recording:** `client.stream_file("call.mp3", language="en")` streams a file in
+  real time and returns the result. For recordings in production, `transcribe` is faster and cheaper.
+
+Audio must arrive in real time: the server accepts at most about 10 seconds ahead of the clock, and
+refuses a faster sender with the error `use_batch`.
 
 ## Webhooks & retrieving results later
 

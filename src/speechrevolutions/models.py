@@ -44,7 +44,8 @@ class TranscribeOptions:
 
     output_type: OutputType | str = OutputType.json
     word_timestamps: bool = True
-    speaker_labels: bool = True
+    # Speaker diarization. An add-on (+$0.02 per audio hour), so off unless asked for.
+    speaker_labels: bool = False
     nltk: bool = True
     tier: ProcessingTier | str = ProcessingTier.standard
     custom_vocabulary: list[str] | None = None
@@ -53,6 +54,16 @@ class TranscribeOptions:
     # language makes the model translate into it.
     language: str | None = None
     callback_url: str | None = None
+    # Add-on: a summary (``Transcript.summary``) of the transcript. +$0.02 per audio hour.
+    summarize: bool = False
+    # Add-on: strong profanity masked ("s***") in every output format. +$0.01 per audio hour.
+    filter_profanity: bool = False
+    # Speaker-aware paragraphs in the JSON output (``Transcript.paragraphs``). Free.
+    paragraphs: bool = False
+    # Keep fillers and false starts ("um", "I, I think") as spoken. None = the server default.
+    verbatim: bool | None = None
+    # Any other request option, sent as given. For options newer than this SDK.
+    extra: dict[str, Any] | None = None
 
     def normalized_output_type(self) -> str:
         if isinstance(self.output_type, OutputType):
@@ -84,6 +95,13 @@ class TranscribeOptions:
             payload["language"] = self.language
         if self.callback_url:
             payload["callback_url"] = self.callback_url
+        for name in ("summarize", "filter_profanity", "paragraphs"):
+            if getattr(self, name):
+                payload[name] = True
+        if self.verbatim is not None:
+            payload["verbatim"] = self.verbatim
+        if self.extra:
+            payload.update(self.extra)
         return payload
 
 
@@ -99,6 +117,11 @@ def resolve_options(
     custom_vocabulary: list[str] | None = None,
     language: str | None = None,
     callback_url: str | None = None,
+    summarize: bool | None = None,
+    filter_profanity: bool | None = None,
+    paragraphs: bool | None = None,
+    verbatim: bool | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> TranscribeOptions:
     """Merge an options object with kwargs (kwargs win). ``diarize`` aliases ``speaker_labels``."""
     base = options or TranscribeOptions()
@@ -119,6 +142,11 @@ def resolve_options(
         ),
         language=language if language is not None else base.language,
         callback_url=callback_url if callback_url is not None else base.callback_url,
+        summarize=summarize if summarize is not None else base.summarize,
+        filter_profanity=filter_profanity if filter_profanity is not None else base.filter_profanity,
+        paragraphs=paragraphs if paragraphs is not None else base.paragraphs,
+        verbatim=verbatim if verbatim is not None else base.verbatim,
+        extra={**(base.extra or {}), **(extra or {})} or None,
     )
 
 

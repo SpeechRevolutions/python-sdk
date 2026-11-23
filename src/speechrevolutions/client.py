@@ -7,11 +7,21 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Callable
 from urllib.parse import quote
 
 import requests
 
+from speechrevolutions.streaming import (
+    AsyncLiveSession,
+    LiveSession,
+    StreamEvent,
+    StreamResult,
+    _session_update,
+    load_pcm16,
+    stream_pcm,
+    stream_url,
+)
 from speechrevolutions._audio import is_url, read_audio
 from speechrevolutions._config import (
     USER_AGENT,
@@ -124,6 +134,11 @@ class SpeechRevolutions:
         custom_vocabulary: list[str] | None = None,
         language: str | None = None,
         callback_url: str | None = None,
+        summarize: bool | None = None,
+        filter_profanity: bool | None = None,
+        paragraphs: bool | None = None,
+        verbatim: bool | None = None,
+        extra: dict[str, Any] | None = None,
         on_progress: ProgressCallback | None = None,
         on_upload_progress: ProgressCallback | None = None,
         progress: bool = False,
@@ -161,6 +176,11 @@ class SpeechRevolutions:
             custom_vocabulary=custom_vocabulary,
             language=language,
             callback_url=callback_url,
+            summarize=summarize,
+            filter_profanity=filter_profanity,
+            paragraphs=paragraphs,
+            verbatim=verbatim,
+            extra=extra,
         )
         job_id, download_url = self._ingest_audio(
             audio, opts, on_upload_progress=on_upload_progress, progress=progress
@@ -205,6 +225,11 @@ class SpeechRevolutions:
         custom_vocabulary: list[str] | None = None,
         language: str | None = None,
         callback_url: str | None = None,
+        summarize: bool | None = None,
+        filter_profanity: bool | None = None,
+        paragraphs: bool | None = None,
+        verbatim: bool | None = None,
+        extra: dict[str, Any] | None = None,
         on_upload_progress: ProgressCallback | None = None,
         progress: bool = False,
     ) -> str:
@@ -228,6 +253,11 @@ class SpeechRevolutions:
             custom_vocabulary=custom_vocabulary,
             language=language,
             callback_url=callback_url,
+            summarize=summarize,
+            filter_profanity=filter_profanity,
+            paragraphs=paragraphs,
+            verbatim=verbatim,
+            extra=extra,
         )
         job_id, _ = self._ingest_audio(
             audio, opts, on_upload_progress=on_upload_progress, progress=progress
@@ -450,6 +480,13 @@ class SpeechRevolutions:
     def cancel_job(self, job_id: str) -> None:
         self._api_request("POST", "/api/v1/jobs/cancel", json={"job_id": job_id})
 
+    def delete_job(self, job_id: str) -> None:
+        """Delete a job's transcripts now instead of waiting for the automatic purge.
+
+        A running job is cancelled first, so nothing is written after the delete.
+        """
+        self._api_request("DELETE", f"/api/v1/jobs/{job_id}")
+
     def check_failed(self, job_ids: list[str]) -> list[bool]:
         data = self._api_request(
             "POST",
@@ -493,6 +530,67 @@ class SpeechRevolutions:
             output_type=output_type,
             download_url=status.download_url,
         )
+
+    # ============================================================
+    # REAL-TIME STREAMING
+    # ============================================================
+
+    def stream(
+        self,
+        *,
+        language: str | None = None,
+        languages: list[str] | None = None,
+        vocabulary: list[str] | None = None,
+        turn_detection: dict[str, Any] | None = None,
+        on_event: Callable[[StreamEvent], Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> LiveSession:
+        """Open a real-time transcription session (needs ``pip install "speechrevolutions[streaming]"``).
+
+        ``language``: the spoken language (``"en"``, ``"ja"``...). Leave it ``None`` to detect it
+        automatically; ``languages=["en", "ja"]`` narrows detection to the ones you expect.
+        ``vocabulary``: names and terms to recognise (included in the streaming price).
+        ``turn_detection``: ``{"threshold": 0.05-0.99, "max_silence_ms": 300-5000}`` tunes when a turn ends.
+        ``extra``: other ``session.update`` fields, sent as given.
+
+        Send PCM16 mono 16 kHz with ``send_audio`` as it is produced, then ``finish()``. The session
+        buffers unacknowledged audio and resumes a dropped connection on its own.
+        """
+        update = _session_update(language, languages, vocabulary, turn_detection, extra)
+        return LiveSession(
+            lambda: AsyncLiveSession(
+                url=stream_url(self.base_url), api_key=self.api_key, session_update=update, on_event=on_event
+            )
+        )
+
+    def stream_file(
+        self,
+        path: str | Path,
+        *,
+        speed: float = 1.0,
+        language: str | None = None,
+        languages: list[str] | None = None,
+        vocabulary: list[str] | None = None,
+        turn_detection: dict[str, Any] | None = None,
+        on_event: Callable[[StreamEvent], Any] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> StreamResult:
+        """Stream a file as if it were live audio, in real time.
+
+        The server takes audio at most ~10 s ahead of real time, so a file streams in roughly its own
+        length (``speed`` > 1 only front-loads the first few seconds). For testing a streaming integration with recorded audio; for transcribing files, ``transcribe``
+        is faster and cheaper. Needs ffmpeg for anything other than a 16 kHz mono 16-bit WAV.
+        """
+        pcm = load_pcm16(str(path))
+        session = self.stream(
+            language=language, languages=languages, vocabulary=vocabulary,
+            turn_detection=turn_detection, on_event=on_event, extra=extra,
+        )
+        try:
+            return session._call(stream_pcm(session._inner, pcm, speed=speed))  # noqa: SLF001
+        finally:
+            session._events.put(None)  # noqa: SLF001
+            session._shutdown()  # noqa: SLF001
 
     def list_jobs(self, *, limit: int = 50, before: str | None = None) -> dict[str, Any]:
         """List the caller's most-recent jobs (newest first), cursor-paginated.

@@ -1,0 +1,6 @@
+S|So what did you think of the quarterly numbers?
+D|Honestly, better than I expected. Revenue was up about twelve percent, but costs grew faster than we planned.
+S|Right, the hiring push in the summer. Do you think we should slow that down next quarter?
+D|I'd pause the sales hires and keep engineering going. The product backlog is the real bottleneck.
+S|That makes sense. Let's bring it up at the planning meeting on Thursday.
+D|Agreed. I'll put together a short deck with the numbers before then.

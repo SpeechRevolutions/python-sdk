@@ -19,7 +19,24 @@ from speechrevolutions.models import (
     TranscribeOptions,
     UploadJob,
 )
-from speechrevolutions.transcript import LanguageSegment, Transcript, Utterance, Word
+from speechrevolutions.streaming import (
+    AsyncLiveSession,
+    Final,
+    LiveSession,
+    StreamError,
+    StreamEvent,
+    StreamResult,
+    load_pcm16,
+)
+from speechrevolutions.transcript import (
+    LanguageSegment,
+    Paragraph,
+    Sentence,
+    Summary,
+    Transcript,
+    Utterance,
+    Word,
+)
 
 __all__ = [
     # Clients
@@ -38,6 +55,17 @@ __all__ = [
     "Word",
     "Utterance",
     "LanguageSegment",
+    "Summary",
+    "Paragraph",
+    "Sentence",
+    # Streaming
+    "LiveSession",
+    "AsyncLiveSession",
+    "StreamEvent",
+    "StreamResult",
+    "Final",
+    "StreamError",
+    "load_pcm16",
     # Errors
     "SpeechRevolutionsError",
     "AuthenticationError",

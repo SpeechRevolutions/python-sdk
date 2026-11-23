@@ -52,6 +52,44 @@ class LanguageSegment:
 
 
 @dataclass
+class Summary:
+    """The ``summarize`` add-on: a short summary and its key points."""
+
+    text: str
+    bullets: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"text": self.text, "bullets": list(self.bullets)}
+
+
+@dataclass
+class Sentence:
+    text: str
+    start: float | None = None
+    end: float | None = None
+
+
+@dataclass
+class Paragraph:
+    """A speaker-aware paragraph (the ``paragraphs`` option): one speaker, split at long pauses."""
+
+    text: str
+    speaker: str | None = None
+    start: float | None = None
+    end: float | None = None
+    sentences: list[Sentence] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "text": self.text,
+            "speaker": self.speaker,
+            "start": self.start,
+            "end": self.end,
+            "sentences": [{"text": x.text, "start": x.start, "end": x.end} for x in self.sentences],
+        }
+
+
+@dataclass
 class Utterance:
     """A contiguous speaker turn (AssemblyAI-style)."""
 
@@ -107,6 +145,10 @@ class Transcript:
     utterances: list[Utterance] = field(default_factory=list)
     languages: list[LanguageSegment] = field(default_factory=list)
     raw: dict[str, Any] | None = None
+    #: Present when the request asked for ``summarize``.
+    summary: Summary | None = None
+    #: Present when the request asked for ``paragraphs``.
+    paragraphs: list[Paragraph] = field(default_factory=list)
     _text: str = field(default="", repr=False)
 
     @property
@@ -145,6 +187,10 @@ class Transcript:
         }
         if self.languages:
             d["languages"] = [seg.to_dict() for seg in self.languages]
+        if self.summary is not None:
+            d["summary"] = self.summary.to_dict()
+        if self.paragraphs:
+            d["paragraphs"] = [pg.to_dict() for pg in self.paragraphs]
         return d
 
     def to_deepgram(self) -> dict[str, Any]:
@@ -274,6 +320,28 @@ def parse_transcript(
         utterances = _utterances_from_words(words)
     languages = [_parse_language_segment(s) for s in raw.get("languages", []) if isinstance(s, dict)]
     text = _join_words(words)
+    summary = None
+    if isinstance(raw.get("summary"), dict):
+        sm = raw["summary"]
+        summary = Summary(
+            text=str(sm.get("text") or ""),
+            bullets=[str(b) for b in sm.get("bullets") or [] if b],
+        )
+    paragraphs = [
+        Paragraph(
+            text=str(pg.get("text") or ""),
+            speaker=str(pg["speaker"]) if pg.get("speaker") is not None else None,
+            start=_as_float(pg.get("start")),
+            end=_as_float(pg.get("end")),
+            sentences=[
+                Sentence(text=str(x.get("text") or ""), start=_as_float(x.get("start")), end=_as_float(x.get("end")))
+                for x in pg.get("sentences") or []
+                if isinstance(x, dict)
+            ],
+        )
+        for pg in raw.get("paragraphs") or []
+        if isinstance(pg, dict)
+    ]
 
     return Transcript(
         job_id=job_id,
@@ -284,6 +352,8 @@ def parse_transcript(
         utterances=utterances,
         languages=languages,
         raw=raw,
+        summary=summary,
+        paragraphs=paragraphs,
         _text=text,
     )
 

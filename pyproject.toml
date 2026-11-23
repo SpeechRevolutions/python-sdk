@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "speechrevolutions"
-version = "1.0.0"
+version = "1.1.0"
 description = "Official Python SDK for the Speech Revolutions speech-to-text API"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Speech Revolutions" }]
-keywords = ["speech-to-text", "stt", "transcription", "whisper", "asr"]
+keywords = ["speech-to-text", "stt", "transcription", "whisper", "asr", "streaming", "real-time", "diarization"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -32,7 +32,8 @@ dependencies = [
 
 [project.optional-dependencies]
 progress = ["tqdm>=4.65"]
-dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "tqdm>=4.65"]
+streaming = ["websockets>=13"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "tqdm>=4.65", "websockets>=13"]
 
 [project.urls]
 Homepage = "https://www.speechrevolutions.com"
