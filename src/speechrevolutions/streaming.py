@@ -223,6 +223,9 @@ class AsyncLiveSession:
         self._reader: Optional[asyncio.Task] = None
         self._sender: Optional[asyncio.Task] = None
         self._send_lock = asyncio.Lock()
+        # False between a drop and the server's session.resumed: audio waits in the buffer, so
+        # nothing reaches the new connection before the rewind.
+        self._live = False
 
     # ------------------------------------------------------------ public
 
@@ -379,6 +382,7 @@ class AsyncLiveSession:
             close_code = exc.rcvd.code if exc.rcvd else None
         except asyncio.CancelledError:
             return
+        self._live = False
         if self._closed.is_set():
             return
         await self._resume(immediately=close_code == 1012)
@@ -415,9 +419,12 @@ class AsyncLiveSession:
         t = ev.type
         if t == "session.created":
             self.job_id = ev.job_id
+            self._live = True
+            self._wake.set()
         elif t in ("session.resumed", "resend"):
             from_ms = ev.raw.get("resume_from_ms", ev.raw.get("from_ms", self._committed_ms))
             await self._rewind(int(from_ms or 0))
+            self._live = True
         elif t == "audio.committed":
             self._committed_ms = int(ev.raw.get("through_ms") or 0)
             self._buffer = [(s, b) for s, b in self._buffer if s + len(b) // BYTES_PER_MS > self._committed_ms]
@@ -466,7 +473,7 @@ class AsyncLiveSession:
             while not self._closed.is_set():
                 sent = await self._send_some()
                 if not sent:
-                    if self._finishing and not self._final_sent and self._next_ms >= self._audio_ms:
+                    if self._live and self._finishing and not self._final_sent and self._next_ms >= self._audio_ms:
                         await self._send_json({"type": "input_audio_buffer.commit", "final": True})
                         self._final_sent = True
                     self._wake.clear()
@@ -476,6 +483,8 @@ class AsyncLiveSession:
 
     async def _send_some(self) -> bool:
         """Send the next chunk of buffered audio, if any. Replays are paced; live audio goes at once."""
+        if not self._live:
+            return False
         chunk = self._chunk_at(self._next_ms)
         if chunk is None:
             return False
