@@ -38,6 +38,11 @@ class ProcessingTier(str, Enum):
     economy = "economy"
 
 
+#: Types ``redact_pii_policies`` accepts (the server's list; default all).
+PII_POLICIES = ("person_name", "organization", "location", "address", "date_of_birth", "date", "account_number",
+                "email_address", "phone_number", "credit_card_number", "us_social_security_number", "ip_address")
+
+
 @dataclass
 class TranscribeOptions:
     """Options controlling how audio is transcribed."""
@@ -60,6 +65,20 @@ class TranscribeOptions:
     filter_profanity: bool = False
     # Speaker-aware paragraphs in the JSON output (``Transcript.paragraphs``). Free.
     paragraphs: bool = False
+    # Chapters covering the whole recording (``Transcript.chapters``). Billed with summarization: +$0.02 per audio
+    # hour, once, with or without ``summarize``.
+    auto_chapters: bool = False
+    # Speaker identification: the names or roles who may be speaking (up to 20). Each diarized speaker is matched to
+    # one, or left unnamed (``Transcript.speaker_names``). Needs ``speaker_labels``. +$0.02 per audio hour.
+    known_speakers: list[str] | None = None
+    # PII redaction in every output format: names, organisations, places, addresses, dates, account / card / phone /
+    # SSN / IP numbers. +$0.08 per audio hour. ``redact_pii_policies`` narrows the types (default all, see
+    # ``PII_POLICIES``); ``redact_pii_sub`` is "entity_name" ("[PERSON_NAME]", default) or "hash" ("####").
+    redact_pii: bool = False
+    redact_pii_policies: list[str] | None = None
+    redact_pii_sub: str | None = None
+    # Entity detection (``Transcript.entities``): the same types, typed and timed. +$0.08 per audio hour.
+    entity_detection: bool = False
     # Keep fillers and false starts ("um", "I, I think") as spoken. None = the server default.
     verbatim: bool | None = None
     # Any other request option, sent as given. For options newer than this SDK.
@@ -95,9 +114,15 @@ class TranscribeOptions:
             payload["language"] = self.language
         if self.callback_url:
             payload["callback_url"] = self.callback_url
-        for name in ("summarize", "filter_profanity", "paragraphs"):
+        for name in ("summarize", "filter_profanity", "paragraphs", "auto_chapters", "redact_pii", "entity_detection"):
             if getattr(self, name):
                 payload[name] = True
+        if self.known_speakers:
+            payload["known_speakers"] = list(self.known_speakers)
+        if self.redact_pii and self.redact_pii_policies:
+            payload["redact_pii_policies"] = list(self.redact_pii_policies)
+        if self.redact_pii and self.redact_pii_sub:
+            payload["redact_pii_sub"] = self.redact_pii_sub
         if self.verbatim is not None:
             payload["verbatim"] = self.verbatim
         if self.extra:
@@ -120,6 +145,12 @@ def resolve_options(
     summarize: bool | None = None,
     filter_profanity: bool | None = None,
     paragraphs: bool | None = None,
+    auto_chapters: bool | None = None,
+    known_speakers: list[str] | None = None,
+    redact_pii: bool | None = None,
+    redact_pii_policies: list[str] | None = None,
+    redact_pii_sub: str | None = None,
+    entity_detection: bool | None = None,
     verbatim: bool | None = None,
     extra: dict[str, Any] | None = None,
 ) -> TranscribeOptions:
@@ -145,6 +176,12 @@ def resolve_options(
         summarize=summarize if summarize is not None else base.summarize,
         filter_profanity=filter_profanity if filter_profanity is not None else base.filter_profanity,
         paragraphs=paragraphs if paragraphs is not None else base.paragraphs,
+        auto_chapters=auto_chapters if auto_chapters is not None else base.auto_chapters,
+        known_speakers=known_speakers if known_speakers is not None else base.known_speakers,
+        redact_pii=redact_pii if redact_pii is not None else base.redact_pii,
+        redact_pii_policies=redact_pii_policies if redact_pii_policies is not None else base.redact_pii_policies,
+        redact_pii_sub=redact_pii_sub if redact_pii_sub is not None else base.redact_pii_sub,
+        entity_detection=entity_detection if entity_detection is not None else base.entity_detection,
         verbatim=verbatim if verbatim is not None else base.verbatim,
         extra={**(base.extra or {}), **(extra or {})} or None,
     )

@@ -63,7 +63,9 @@ class StreamEvent:
     replaces the previous partial with the same ``index``; ``text[:stable]`` is settled), ``final``,
     ``final.revised`` (a better version of an earlier final), ``speech.started``, ``turn.ended``,
     ``language.detected``, ``language.unsupported``, ``audio.committed``, ``transcription.done``,
-    ``error``. Unknown types are passed through with ``raw`` set.
+    ``voice_focus`` (``active``: the stream is locked to the voiceprint), ``warning``, ``error``. A redacted final
+    whose PII pass fell back to patterns only carries ``pii_status`` "patterns_only". Unknown types are passed
+    through with ``raw`` set.
     """
 
     type: str
@@ -79,6 +81,8 @@ class StreamEvent:
     job_id: Optional[str] = None
     code: Optional[str] = None
     message: Optional[str] = None
+    active: Optional[bool] = None
+    pii_status: Optional[str] = None
     raw: dict = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -96,6 +100,8 @@ class StreamEvent:
             probability=m.get("probability"),
             forced=m.get("forced"),
             job_id=m.get("job_id"),
+            active=m.get("active"),
+            pii_status=m.get("pii_status"),
             code=m.get("code") or (err if isinstance(err, str) and " " not in err else None),
             message=m.get("message") or (err if isinstance(err, str) else None),
             raw=m,
@@ -121,6 +127,10 @@ class StreamResult:
     finals: list[Final]
     #: False when the session ended before ``transcription.done`` (``text`` is then the finals so far).
     complete: bool = True
+    #: With ``capture_voiceprint``: the sealed voiceprint to pass as ``voiceprint`` later, and its quality
+    #: (``{"score", "ok", "reasons"}``; capture again until ``ok``).
+    voiceprint: Optional[str] = None
+    voiceprint_quality: Optional[dict] = None
 
 
 def load_pcm16(path: str) -> bytes:
@@ -152,6 +162,14 @@ def _session_update(
     vocabulary: Optional[list[str]],
     turn_detection: Optional[dict],
     extra: Optional[dict],
+    *,
+    redact_pii: bool = False,
+    redact_pii_policies: Optional[list[str]] = None,
+    redact_pii_sub: Optional[str] = None,
+    include_partials: Optional[bool] = None,
+    voiceprint: Optional[str] = None,
+    capture_voiceprint: bool = False,
+    speaker_policy: Optional[str] = None,
 ) -> dict:
     m: dict[str, Any] = {
         "type": "session.update",
@@ -165,6 +183,20 @@ def _session_update(
         m["vocabulary"] = list(vocabulary)
     if turn_detection:
         m["turn_detection"] = dict(turn_detection)
+    if redact_pii:
+        m["redact_pii"] = True
+        if redact_pii_policies:
+            m["redact_pii_policies"] = list(redact_pii_policies)
+        if redact_pii_sub:
+            m["redact_pii_sub"] = redact_pii_sub
+    if include_partials is not None:
+        m["include_partials"] = bool(include_partials)
+    if voiceprint:
+        m["voiceprint"] = voiceprint
+    if capture_voiceprint:
+        m["capture_voiceprint"] = True
+    if speaker_policy:
+        m["speaker_policy"] = speaker_policy
     if extra:
         m.update(extra)
     return m
@@ -513,7 +545,9 @@ class AsyncLiveSession:
             text = self._done.text
         else:
             text = " ".join(f.text for f in finals if f.text)
-        return StreamResult(job_id=self.job_id, text=text, finals=finals, complete=complete)
+        raw = self._done.raw if self._done is not None else {}
+        return StreamResult(job_id=self.job_id, text=text, finals=finals, complete=complete,
+                            voiceprint=raw.get("voiceprint"), voiceprint_quality=raw.get("voiceprint_quality"))
 
 
 class LiveSession:

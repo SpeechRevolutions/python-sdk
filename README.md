@@ -76,7 +76,11 @@ Batch is $0.09 per audio hour. Add-ons are charged per audio hour only when a re
 | `speaker_labels=True` (or `diarize=True`) | Speaker diarization: `word.speaker`, `result.utterances` | +$0.02/hr |
 | `custom_vocabulary=["Zephyr", "Acme"]` | Keyterms: given to the model and matched by sound | +$0.05/hr |
 | `summarize=True` | `result.summary.text` and `result.summary.bullets` | +$0.02/hr |
+| `auto_chapters=True` | `result.chapters`: headline + gist sections covering the whole recording | with `summarize`: +$0.02/hr once |
 | `filter_profanity=True` | Strong profanity masked (`s***`) in every format | +$0.01/hr |
+| `known_speakers=["Agent", "Customer"]` | Speaker identification: `result.speaker_names` maps each speaker to one of them, or leaves it unnamed (needs `speaker_labels`) | +$0.02/hr |
+| `redact_pii=True` | Names, organisations, places, addresses, dates, account / card / phone / SSN / IP numbers replaced by `[PERSON_NAME]`-style labels (or `####` with `redact_pii_sub="hash"`); narrow with `redact_pii_policies` (`speechrevolutions.PII_POLICIES`) | +$0.08/hr |
+| `entity_detection=True` | `result.entities`: the same types, typed and timed | +$0.08/hr |
 | `paragraphs=True` | `result.paragraphs`: speaker-aware, with sentences and times | free |
 | `verbatim=True/False` | Keep or drop fillers and false starts | free |
 | `language="en"` | Skip detection and transcribe in that language | free |
@@ -94,6 +98,9 @@ print(result.summary.text)
 for p in result.paragraphs:
     print(f"[{p.start:.1f}s] {p.speaker}: {p.text}")
 ```
+
+An add-on that could not be delivered is not charged (a summary that failed; PII redaction that could only use
+pattern matching, which `result.pii_status == "patterns_only"` reports).
 
 `language` pins an ISO 639-1 code (e.g. `language="ru"`) and skips language
 detection; `None` (or `"auto"`) detects it automatically. Pinning the wrong
@@ -208,6 +215,14 @@ session = client.stream(language="en", vocabulary=["Northwind"], on_event=on_eve
 
 - **Turns:** `turn_detection={"threshold": 0.5, "max_silence_ms": 800}` tunes when a turn ends, and
   `session.end_turn()` ends one now (push-to-talk).
+- **PII redaction** (+$0.12 per session hour): `redact_pii=True` redacts finals before they reach you
+  (`redact_pii_policies` / `redact_pii_sub` as in batch). Partials are not sent while it is on, unless
+  `include_partials=True`, in which case they arrive unredacted.
+- **Voice focus** (+$0.10 per session hour): lock the stream to one enrolled voice, so other people and
+  background voices are left out. Enrol once with `capture_voiceprint=True`: the result carries
+  `result.voiceprint` and `result.voiceprint_quality` (capture again until `ok`). Then pass
+  `voiceprint=...` (and optionally `speaker_policy="strict"`). A `voice_focus` event says whether the lock is
+  active, and only an active lock is billed. You keep the voiceprint; we keep none after the session.
 - **Dropped connections are handled for you:** the session keeps audio the server hasn't acknowledged,
   reconnects with its job id for up to 60 s, and replays the rest. The transcript comes back complete
   under the same `job_id`.

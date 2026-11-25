@@ -12,6 +12,7 @@ from speechrevolutions.exceptions import (
     UploadError,
 )
 from speechrevolutions.models import (
+    PII_POLICIES,
     JobStatus,
     OutputType,
     ProcessingTier,
@@ -32,6 +33,8 @@ from speechrevolutions.transcript import (
     LanguageSegment,
     Paragraph,
     Sentence,
+    Chapter,
+    Entity,
     Summary,
     Transcript,
     Utterance,
@@ -55,6 +58,9 @@ __all__ = [
     "Word",
     "Utterance",
     "LanguageSegment",
+    "Chapter",
+    "Entity",
+    "PII_POLICIES",
     "Summary",
     "Paragraph",
     "Sentence",

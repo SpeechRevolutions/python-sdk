@@ -122,6 +122,12 @@ class AsyncSpeechRevolutions:
         summarize: bool | None = None,
         filter_profanity: bool | None = None,
         paragraphs: bool | None = None,
+        auto_chapters: bool | None = None,
+        known_speakers: list[str] | None = None,
+        redact_pii: bool | None = None,
+        redact_pii_policies: list[str] | None = None,
+        redact_pii_sub: str | None = None,
+        entity_detection: bool | None = None,
         verbatim: bool | None = None,
         extra: dict[str, Any] | None = None,
         on_progress: ProgressCallback | None = None,
@@ -156,6 +162,12 @@ class AsyncSpeechRevolutions:
             summarize=summarize,
             filter_profanity=filter_profanity,
             paragraphs=paragraphs,
+            auto_chapters=auto_chapters,
+            known_speakers=known_speakers,
+            redact_pii=redact_pii,
+            redact_pii_policies=redact_pii_policies,
+            redact_pii_sub=redact_pii_sub,
+            entity_detection=entity_detection,
             verbatim=verbatim,
             extra=extra,
         )
@@ -203,6 +215,12 @@ class AsyncSpeechRevolutions:
         summarize: bool | None = None,
         filter_profanity: bool | None = None,
         paragraphs: bool | None = None,
+        auto_chapters: bool | None = None,
+        known_speakers: list[str] | None = None,
+        redact_pii: bool | None = None,
+        redact_pii_policies: list[str] | None = None,
+        redact_pii_sub: str | None = None,
+        entity_detection: bool | None = None,
         verbatim: bool | None = None,
         extra: dict[str, Any] | None = None,
         on_upload_progress: ProgressCallback | None = None,
@@ -229,6 +247,12 @@ class AsyncSpeechRevolutions:
             summarize=summarize,
             filter_profanity=filter_profanity,
             paragraphs=paragraphs,
+            auto_chapters=auto_chapters,
+            known_speakers=known_speakers,
+            redact_pii=redact_pii,
+            redact_pii_policies=redact_pii_policies,
+            redact_pii_sub=redact_pii_sub,
+            entity_detection=entity_detection,
             verbatim=verbatim,
             extra=extra,
         )
@@ -398,6 +422,13 @@ class AsyncSpeechRevolutions:
         languages: list[str] | None = None,
         vocabulary: list[str] | None = None,
         turn_detection: dict[str, Any] | None = None,
+        redact_pii: bool = False,
+        redact_pii_policies: list[str] | None = None,
+        redact_pii_sub: str | None = None,
+        include_partials: bool | None = None,
+        voiceprint: str | None = None,
+        capture_voiceprint: bool = False,
+        speaker_policy: str | None = None,
         on_event: Callable[[StreamEvent], Any] | None = None,
         extra: dict[str, Any] | None = None,
     ) -> AsyncLiveSession:
@@ -407,12 +438,25 @@ class AsyncSpeechRevolutions:
         automatically; ``languages=["en", "ja"]`` narrows detection to the ones you expect.
         ``vocabulary``: names and terms to recognise (included in the streaming price).
         ``turn_detection``: ``{"threshold": 0.05-0.99, "max_silence_ms": 300-5000}`` tunes when a turn ends.
+        ``redact_pii``: redact personal information in finals before they arrive (+$0.12 per session hour;
+        ``redact_pii_policies`` / ``redact_pii_sub`` as in batch). Partials are not sent while it is on, unless
+        ``include_partials=True`` (then they arrive unredacted).
+        ``voiceprint``: voice focus -- lock the stream to one enrolled voice (+$0.10 per session hour, billed only
+        while a ``voice_focus`` event says ``active``). Get one with ``capture_voiceprint=True`` in an earlier
+        session: ``StreamResult.voiceprint`` / ``.voiceprint_quality`` (capture again until ``ok``). You keep it.
+        ``speaker_policy``: "prefer" (default: a different speaker is still transcribed when the enrolled one is
+        silent) or "strict".
         ``extra``: other ``session.update`` fields, sent as given.
 
         Send PCM16 mono 16 kHz with ``send_audio`` as it is produced, then ``finish()``. The session
         buffers unacknowledged audio and resumes a dropped connection on its own.
         """
-        update = _session_update(language, languages, vocabulary, turn_detection, extra)
+        update = _session_update(
+            language, languages, vocabulary, turn_detection, extra,
+            redact_pii=redact_pii, redact_pii_policies=redact_pii_policies, redact_pii_sub=redact_pii_sub,
+            include_partials=include_partials, voiceprint=voiceprint, capture_voiceprint=capture_voiceprint,
+            speaker_policy=speaker_policy,
+        )
         session = AsyncLiveSession(
             url=stream_url(self.base_url), api_key=self.api_key, session_update=update, on_event=on_event
         )
@@ -427,6 +471,13 @@ class AsyncSpeechRevolutions:
         languages: list[str] | None = None,
         vocabulary: list[str] | None = None,
         turn_detection: dict[str, Any] | None = None,
+        redact_pii: bool = False,
+        redact_pii_policies: list[str] | None = None,
+        redact_pii_sub: str | None = None,
+        include_partials: bool | None = None,
+        voiceprint: str | None = None,
+        capture_voiceprint: bool = False,
+        speaker_policy: str | None = None,
         on_event: Callable[[StreamEvent], Any] | None = None,
         extra: dict[str, Any] | None = None,
     ) -> StreamResult:
@@ -435,6 +486,9 @@ class AsyncSpeechRevolutions:
         session = await self.stream(
             language=language, languages=languages, vocabulary=vocabulary,
             turn_detection=turn_detection, on_event=on_event, extra=extra,
+            redact_pii=redact_pii, redact_pii_policies=redact_pii_policies, redact_pii_sub=redact_pii_sub,
+            include_partials=include_partials, voiceprint=voiceprint, capture_voiceprint=capture_voiceprint,
+            speaker_policy=speaker_policy,
         )
         return await stream_pcm(session, pcm, speed=speed)
 

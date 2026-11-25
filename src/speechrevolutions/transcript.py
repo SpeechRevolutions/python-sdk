@@ -63,6 +63,32 @@ class Summary:
 
 
 @dataclass
+class Chapter:
+    """The ``auto_chapters`` option: one section of the recording."""
+
+    start: float | None
+    end: float | None
+    headline: str
+    gist: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"start": self.start, "end": self.end, "headline": self.headline, "gist": self.gist}
+
+
+@dataclass
+class Entity:
+    """``entity_detection``: one item found in the transcript. ``text`` is its placeholder when also redacted."""
+
+    entity_type: str
+    text: str
+    start: float | None = None
+    end: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"entity_type": self.entity_type, "text": self.text, "start": self.start, "end": self.end}
+
+
+@dataclass
 class Sentence:
     text: str
     start: float | None = None
@@ -149,6 +175,14 @@ class Transcript:
     summary: Summary | None = None
     #: Present when the request asked for ``paragraphs``.
     paragraphs: list[Paragraph] = field(default_factory=list)
+    #: Present when the request asked for ``auto_chapters``: sections covering the whole recording.
+    chapters: list[Chapter] = field(default_factory=list)
+    #: Present when the request asked for ``entity_detection``.
+    entities: list[Entity] = field(default_factory=list)
+    #: Speaker label -> name or role (``known_speakers`` / ``speaker_names``); unnamed speakers are absent.
+    speaker_names: dict[str, str] = field(default_factory=dict)
+    #: "patterns_only" when PII redaction / entity detection could only use pattern matching (not charged).
+    pii_status: str | None = None
     _text: str = field(default="", repr=False)
 
     @property
@@ -191,6 +225,14 @@ class Transcript:
             d["summary"] = self.summary.to_dict()
         if self.paragraphs:
             d["paragraphs"] = [pg.to_dict() for pg in self.paragraphs]
+        if self.chapters:
+            d["chapters"] = [c.to_dict() for c in self.chapters]
+        if self.entities:
+            d["entities"] = [e.to_dict() for e in self.entities]
+        if self.speaker_names:
+            d["speaker_names"] = dict(self.speaker_names)
+        if self.pii_status:
+            d["pii_status"] = self.pii_status
         return d
 
     def to_deepgram(self) -> dict[str, Any]:
@@ -343,6 +385,18 @@ def parse_transcript(
         if isinstance(pg, dict)
     ]
 
+    chapters = [
+        Chapter(start=_as_float(c.get("start")), end=_as_float(c.get("end")),
+                headline=str(c.get("headline") or ""), gist=str(c.get("gist") or ""))
+        for c in raw.get("chapters") or [] if isinstance(c, dict)
+    ]
+    entities = [
+        Entity(entity_type=str(e.get("entity_type") or ""), text=str(e.get("text") or ""),
+               start=_as_float(e.get("start")), end=_as_float(e.get("end")))
+        for e in raw.get("entities") or [] if isinstance(e, dict)
+    ]
+    names = raw.get("speaker_names") if isinstance(raw.get("speaker_names"), dict) else {}
+
     return Transcript(
         job_id=job_id,
         output_type=output_type,
@@ -354,6 +408,10 @@ def parse_transcript(
         raw=raw,
         summary=summary,
         paragraphs=paragraphs,
+        chapters=chapters,
+        entities=entities,
+        speaker_names={str(k): str(v) for k, v in names.items()},
+        pii_status=raw.get("pii_status") if isinstance(raw.get("pii_status"), str) else None,
         _text=text,
     )
 
